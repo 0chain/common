@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+.idea
+common.iml
 
 # Test binary, built with `go test -c`
 *.test
