@@ -10,9 +10,11 @@ const (
 )
 
 const (
-	HashFunction       = v1_endpoint.InternalEndpoint + "hash"        // /_hash
-	SignFunction       = v1_endpoint.InternalEndpoint + "sign"        // /_sign
-	ChainStatsFunction = v1_endpoint.InternalEndpoint + "chain_stats" // /_chain_stats
+	HashFunction                           = v1_endpoint.InternalEndpoint + "hash"        // /_hash
+	SignFunction                           = v1_endpoint.InternalEndpoint + "sign"        // /_sign
+	ChainStatsFunction                     = v1_endpoint.InternalEndpoint + "chain_stats" // /_chain_stats
+	NodeToNodeInternalFunction             = v1_endpoint.InternalEndpoint + "n2n"
+	AnyServiceToAnyServiceInternalFunction = v1_endpoint.InternalEndpoint + "x2x"
 )
 
 const (
@@ -35,4 +37,13 @@ const (
 	GetChain      = v1_endpoint.ApiVersion + ChainResource + v1_endpoint.GetAction // /v1/chain/get
 	GetChainStats = GetChain + "/stats"                                            // /v1/chain/get/stats
 	PutChain      = v1_endpoint.ApiVersion + ChainResource + v1_endpoint.PutAction // /v1/chain/put
+)
+
+const (
+	NodeToNodePostEntity = v1_endpoint.ApiVersion + NodeToNodeInternalFunction + "/entity" + v1_endpoint.PostAction // /v1/_n2n/entity/post
+)
+
+const (
+	AnyServiceToAnyServiceGetBlockStateChange = v1_endpoint.ApiVersion + AnyServiceToAnyServiceInternalFunction + "/block/state_change" + v1_endpoint.GetAction // /v1/_x2x/block/state_change
+	AnyServiceToAnyServiceGetNodes            = v1_endpoint.ApiVersion + AnyServiceToAnyServiceInternalFunction + "/state/get_nodes"                            // /v1/_x2x/state/get_nodes
 )
