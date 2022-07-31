@@ -34,8 +34,8 @@ func New(path string) Endpoint {
 }
 
 func NewWithPathVariable(path, pathVariable string) Endpoint {
-	var e Endpoint = New(path)
-	e.pathVariable = strings.Trim(pathVariable, " ")
+	var e = New(path)
+	e.pathVariable = strings.Trim(strings.Trim(pathVariable, " "), "/")
 
 	return e
 }
@@ -56,7 +56,7 @@ func (m Endpoint) Path() string {
 }
 
 func (m Endpoint) PathWithPathVariable() string {
-	var trimmedPathVariable = strings.Trim(m.pathVariable, " ")
+	var trimmedPathVariable = strings.Trim(strings.Trim(m.pathVariable, " "), "/")
 
 	if trimmedPathVariable == "" {
 		return m.Path()
@@ -76,7 +76,7 @@ func (m Endpoint) FormattedPath(format Format) string {
 }
 
 func (m Endpoint) FormattedPathWithPathVariable(format Format) string {
-	var trimmedPathVariable = strings.Trim(m.pathVariable, " ")
+	var trimmedPathVariable = strings.Trim(strings.Trim(m.pathVariable, " "), "/")
 
 	if trimmedPathVariable == "" {
 		return m.FormattedPath(format)
