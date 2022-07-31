@@ -11,7 +11,7 @@ const (
 )
 
 var (
-	FileUpload       = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion+fileResource+"/upload", "allocation")       // /v1/file/upload/{allocation}
-	FileDownload     = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion+fileResource+"/download", "allocation")     // /v1/file/download/{allocation}
-	ConnectionCommit = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion+connectionResource+"/commit", "allocation") // /v1/connection/commit/{allocation}
+	FileUpload       = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion + fileResource + "/upload", "allocation")       // /v1/file/upload/{allocation}
+	FileDownload     = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion + fileResource + "/download", "allocation")     // /v1/file/download/{allocation}
+	ConnectionCommit = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion + connectionResource + "/commit", "allocation") // /v1/connection/commit/{allocation}
 )
