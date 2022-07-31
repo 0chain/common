@@ -16,7 +16,8 @@ const (
 )
 
 type Endpoint struct {
-	path string
+	path         string
+	pathVariable string
 }
 
 func New(path string) Endpoint {
@@ -32,13 +33,36 @@ func New(path string) Endpoint {
 	return e
 }
 
+func NewWithPathVariable(path, pathVariable string) Endpoint {
+	var e Endpoint = New(path)
+	e.pathVariable = strings.Trim(pathVariable, " ")
+
+	return e
+}
+
 func Join(base Endpoint, path string) Endpoint {
 	e := New(base.FormattedPath(TrailingSlash) + strings.Trim(strings.Trim(path, " "), "/"))
 	return e
 }
 
+func JoinWithPathVariable(base Endpoint, path, pathVariable string) Endpoint {
+	e := Join(base, pathVariable)
+	e.pathVariable = strings.Trim(pathVariable, " ")
+	return e
+}
+
 func (m Endpoint) Path() string {
 	return m.FormattedPath(LeadingSlash)
+}
+
+func (m Endpoint) PathWithPathVariable() string {
+	var trimmedPathVariable = strings.Trim(m.pathVariable, " ")
+
+	if trimmedPathVariable == "" {
+		return m.Path()
+	}
+
+	return m.FormattedPath(LeadingSlash) + "/{" + trimmedPathVariable + "}"
 }
 
 func (m Endpoint) FormattedPath(format Format) string {
@@ -48,16 +72,31 @@ func (m Endpoint) FormattedPath(format Format) string {
 		return trimmedPath
 	}
 
-	switch format {
-	case LeadingSlash:
-		return "/" + trimmedPath
-	case TrailingSlash:
-		return trimmedPath + "/"
-	case LeadingAndTrailingSlash:
-		return "/" + trimmedPath + "/"
-	case NoSlash:
-		return strings.Trim(trimmedPath, "/")
+	return applyFormatting(format, trimmedPath)
+}
+
+func (m Endpoint) FormattedPathWithPathVariable(format Format) string {
+	var trimmedPathVariable = strings.Trim(m.pathVariable, " ")
+
+	if trimmedPathVariable == "" {
+		return m.FormattedPath(format)
 	}
 
-	return m.Path()
+	return applyFormatting(format, m.PathWithPathVariable())
+
+}
+
+func applyFormatting(format Format, str string) string {
+	strippedString := strings.Trim(str, "/")
+	switch format {
+	case LeadingSlash:
+		return "/" + strippedString
+	case TrailingSlash:
+		return strippedString + "/"
+	case LeadingAndTrailingSlash:
+		return "/" + strippedString + "/"
+	case NoSlash:
+		return strippedString
+	}
+	return str
 }
