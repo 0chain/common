@@ -21,6 +21,12 @@ func TestEndpoint_FormattedPath(t *testing.T) {
 			want: "v1/test",
 		},
 		{
+			name: "RootNoSlash",
+			path: "/",
+			args: args{format: NoSlash},
+			want: "/",
+		},
+		{
 			name: "TrailingSlash",
 			path: "/v1/test/",
 			args: args{format: TrailingSlash},
