@@ -39,6 +39,12 @@ func TestEndpoint_FormattedPath(t *testing.T) {
 			want: "/v1/test/",
 		},
 		{
+			name: "RootLeadingAndTrailingSlash",
+			path: "/",
+			args: args{format: LeadingAndTrailingSlash},
+			want: "/",
+		},
+		{
 			name: "Trimmed",
 			path: "   /v1/test/   ",
 			args: args{format: LeadingAndTrailingSlash},
@@ -107,6 +113,20 @@ func TestEndpoint_FormattedPathWithPathVariable(t *testing.T) {
 			want:         "/v1/test/{allocation}/",
 		},
 		{
+			name:         "RootLeadingAndTrailingSlashNoVariable",
+			path:         "/",
+			pathVariable: "",
+			args:         args{format: LeadingAndTrailingSlash},
+			want:         "/",
+		},
+		{
+			name:         "RootLeadingAndTrailingSlashWithVariable",
+			path:         "/",
+			pathVariable: "allocation",
+			args:         args{format: LeadingAndTrailingSlash},
+			want:         "/{allocation}/",
+		},
+		{
 			name:         "Trimmed",
 			path:         "   /v1/test/   ",
 			pathVariable: " allocation ",
@@ -127,12 +147,19 @@ func TestEndpoint_FormattedPathWithPathVariable(t *testing.T) {
 			args:         args{format: NoSlash},
 			want:         "v1/test/{allocation}",
 		},
+		{
+			name:         "NoPathVariable",
+			path:         "  / v1/test /",
+			pathVariable: "",
+			args:         args{format: NoSlash},
+			want:         "v1/test",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewWithPathVariable(tt.path, tt.pathVariable)
 			if got := m.FormattedPathWithPathVariable(tt.args.format); got != tt.want {
-				t.Errorf("FormattedPath() = %v, want %v", got, tt.want)
+				t.Errorf("FormattedPathWithPathVariable() = %v, want %v", got, tt.want)
 			}
 		})
 	}
