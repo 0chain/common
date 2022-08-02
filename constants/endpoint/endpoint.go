@@ -4,7 +4,7 @@ import "strings"
 
 const rootPath = "/"
 
-var RootEndpoint = New(rootPath)
+var Root = New(rootPath)
 
 type Format int64
 
@@ -16,8 +16,8 @@ const (
 )
 
 type Endpoint struct {
-	path         string
-	pathVariable string
+	path          string
+	pathVariables []string
 }
 
 func New(path string) Endpoint {
@@ -33,21 +33,24 @@ func New(path string) Endpoint {
 	return e
 }
 
-func NewWithPathVariable(path, pathVariable string) Endpoint {
+func NewWithPathVariable(path string, pathVariable ...string) Endpoint {
 	var e = New(path)
-	e.pathVariable = strings.Trim(strings.Trim(pathVariable, " "), "/")
+	e.pathVariables = sanitizeArgs(pathVariable)
 
 	return e
 }
 
 func Join(base Endpoint, path string) Endpoint {
-	e := New(base.FormattedPath(TrailingSlash) + strings.Trim(strings.Trim(path, " "), "/"))
+	e := New(base.FormattedPath(TrailingSlash) + strings.Trim(strings.ReplaceAll(path, " ", ""), "/"))
+	e.pathVariables = base.pathVariables
 	return e
 }
 
-func JoinWithPathVariable(base Endpoint, path, pathVariable string) Endpoint {
-	e := Join(base, pathVariable)
-	e.pathVariable = strings.Trim(pathVariable, " ")
+func JoinWithPathVariable(base Endpoint, path string, pathVariables ...string) Endpoint {
+	e := Join(base, path)
+	basePathVariables := base.pathVariables
+	newPathVariables := sanitizeArgs(pathVariables)
+	e.pathVariables = append(basePathVariables, newPathVariables...)
 	return e
 }
 
@@ -56,17 +59,17 @@ func (m Endpoint) Path() string {
 }
 
 func (m Endpoint) PathWithPathVariable() string {
-	var trimmedPathVariable = strings.Trim(strings.Trim(m.pathVariable, " "), "/")
+	var combinedPathVariables = strings.Join(m.pathVariables, "/")
 
-	if trimmedPathVariable == "" {
+	if combinedPathVariables == "" {
 		return m.Path()
 	}
 
-	return m.FormattedPath(LeadingSlash) + "/{" + trimmedPathVariable + "}"
+	return m.FormattedPath(LeadingSlash) + "/" + combinedPathVariables
 }
 
 func (m Endpoint) FormattedPath(format Format) string {
-	var trimmedPath = strings.Trim(m.path, " ")
+	var trimmedPath = strings.ReplaceAll(m.path, " ", "")
 
 	if trimmedPath == rootPath {
 		return trimmedPath
@@ -76,7 +79,7 @@ func (m Endpoint) FormattedPath(format Format) string {
 }
 
 func (m Endpoint) FormattedPathWithPathVariable(format Format) string {
-	var trimmedPathVariable = strings.Trim(strings.Trim(m.pathVariable, " "), "/")
+	var trimmedPathVariable = strings.Join(m.pathVariables, "/")
 
 	if trimmedPathVariable == "" {
 		return m.FormattedPath(format)
@@ -84,6 +87,18 @@ func (m Endpoint) FormattedPathWithPathVariable(format Format) string {
 
 	return applyFormatting(format, m.PathWithPathVariable())
 
+}
+
+func sanitizeArgs(pathVariable []string) []string {
+	pathVariables := make([]string, len(pathVariable))
+	for index, val := range pathVariable {
+		trimmedVal :=  strings.Trim(strings.ReplaceAll(val, " ", ""), "/")
+		if trimmedVal != "" {
+			pathVariables[index] = "{" + trimmedVal + "}"
+		}
+	}
+
+	return pathVariables
 }
 
 func applyFormatting(format Format, str string) string {
