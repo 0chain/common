@@ -14,6 +14,7 @@ const (
 	marketplaceResource string = "/marketplace"
 	writeMarkerResource string = "/writemarker"
 	hashNodeResource    string = "/hashnode"
+	readMarkerResource  string = "/readmarker"
 	debugResource              = v1_endpoint.InternalEndpoint + "debug"
 	configResource             = v1_endpoint.InternalEndpoint + "config"
 	statsResource              = v1_endpoint.InternalEndpoint + "stats"
@@ -45,11 +46,17 @@ var (
 	FileObjectTree    = endpoint.JoinWithPathVariable(File, "/objecttree", "allocation")    // /v1/file/objecttree/{rename}
 	FileRefs          = endpoint.JoinWithPathVariable(File, "/refs", "allocation")          // /v1/file/refs/{rename}
 	FileCommitMetaTxn = endpoint.JoinWithPathVariable(File, "/commitmetatxn", "allocation") // /v1/file/commitmetatxn/{rename}
+	FileCalculateHash = endpoint.JoinWithPathVariable(File, "/calculatehash", "allocation") // /v1/file/calculatehash/{rename}
 )
 
 var (
 	Marketplace          = endpoint.New(v1_endpoint.ApiVersion + marketplaceResource)             // /v1/marketplace
 	MarketplaceShareInfo = endpoint.JoinWithPathVariable(Marketplace, "/shareinfo", "allocation") // /v1/marketplace/shareinfo/{allocation}
+)
+
+var (
+	ReadMarker               = endpoint.New(v1_endpoint.ApiVersion + readMarkerResource)        // /v1/readmarker
+	LatestReadMarker           = endpoint.JoinWithPathVariable(WriteMarker, "/latest", "allocation") // /v1/readmarker/latest/{allocation}
 )
 
 var (
@@ -72,4 +79,5 @@ var (
 )
 var (
 	ConnectionCommit = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion+connectionResource+"/commit", "allocation") // /v1/connection/commit/{allocation}
+	ConnectionDetails = endpoint.NewWithPathVariable(v1_endpoint.ApiVersion+connectionResource+"/details", "allocation") // /v1/connection/details/{allocation}
 )
