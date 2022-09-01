@@ -11,7 +11,7 @@ require (
 	github.com/tinylib/msgp v1.1.6
 	go.uber.org/atomic v1.7.0
 	go.uber.org/zap v1.21.0
-	golang.org/x/crypto v0.0.0-20220817201139-bc19a97f63c8
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
 
