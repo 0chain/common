@@ -648,7 +648,7 @@ func CreateNode(r io.Reader) (Node, error) {
 	case NodeTypeExtensionNode:
 		node = NewExtensionNode(nil, nil)
 	default:
-		panic(fmt.Sprintf("unkown node type: %v", code))
+		panic(fmt.Sprintf("unknown node type: %v", code))
 	}
 	var ot OriginTracker
 	_ = ot.Read(r)
