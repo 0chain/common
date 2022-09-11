@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/0chain/common/core/common"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -139,6 +140,13 @@ func (mpt *MerklePatriciaTrie) Insert(path Path, value MPTSerializable) (Key, er
 		Logger.Debug("Insert encoded nil value, delete data on path:",
 			zap.String("path", string(path)))
 		return mpt.Delete(path)
+	}
+
+	if len(eval) > MPTMaxAllowableNodeSize {
+		msg := fmt.Sprintf("node exceeds maximum permissible size, path: %s", string(path))
+		err = common.NewError("failed to insert node", msg)
+		Logger.Error("node size limit exceeded", zap.Error(err))
+		return nil, err
 	}
 
 	valueCopy := &SecureSerializableValue{eval}

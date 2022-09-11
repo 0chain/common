@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// MPTMaxAllowableNodeSize - Maximum allowable size of MPT node
+const (
+	MPTMaxAllowableNodeSize = 1024 * 1024 // 1 MB
+)
+
 //ErrIteratingChildNodes - indicates an error iterting the child nodes
 var (
 	ErrIteratingChildNodes = errors.New("Error iterating child nodes")
