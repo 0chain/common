@@ -143,7 +143,7 @@ func (mpt *MerklePatriciaTrie) Insert(path Path, value MPTSerializable) (Key, er
 	}
 
 	if len(eval) > MPTMaxAllowableNodeSize {
-		msg := fmt.Sprintf("node exceeds maximum permissible size, path: %s", string(path))
+		msg := fmt.Sprintf("node exceeds maximum permissible size of %d bytes for path: %s", MPTMaxAllowableNodeSize, string(path))
 		err = common.NewError("failed to insert node", msg)
 		Logger.Error("node size limit exceeded", zap.Error(err))
 		return nil, err
