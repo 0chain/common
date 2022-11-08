@@ -1037,22 +1037,9 @@ func (mpt *MerklePatriciaTrie) FindMissingNodesInPath(path Path) ([]Key, error) 
 func (mpt *MerklePatriciaTrie) findMissingNodesInPath(path Path, node Node, keys []Key) []Key {
 	switch nodeImpl := node.(type) {
 	case *LeafNode:
-		if bytes.Equal(nodeImpl.Path, path) {
-			d := nodeImpl.GetValueBytes()
-			if len(d) == 0 {
-				return keys
-			}
-
-			return keys
-		}
 		return keys
 	case *FullNode:
 		if len(path) == 0 {
-			d := nodeImpl.GetValueBytes()
-			if len(d) == 0 {
-				return keys
-			}
-
 			return keys
 		}
 		ckey := nodeImpl.GetChild(path[0])
