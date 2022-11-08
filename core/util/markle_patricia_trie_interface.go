@@ -12,25 +12,25 @@ const (
 	MPTMaxAllowableNodeSize = 1024 * 1024 // 1 MB
 )
 
-//ErrIteratingChildNodes - indicates an error iterting the child nodes
+// ErrIteratingChildNodes - indicates an error iterting the child nodes
 var (
 	ErrIteratingChildNodes = errors.New("Error iterating child nodes")
 	ErrMissingNodes        = errors.New("missing nodes")
 )
 
-//Path - a type for the path of the merkle patricia trie
+// Path - a type for the path of the merkle patricia trie
 type Path []byte
 
-//Key - a type for the merkle patricia trie node key
+// Key - a type for the merkle patricia trie node key
 type Key []byte
 
 /*MPTIteratorHandler is a collection iteration handler function type */
 type MPTIteratorHandler func(ctx context.Context, path Path, key Key, node Node) error
 
-//MPTMissingNodeHandler - a handler for missing keys during iteration
+// MPTMissingNodeHandler - a handler for missing keys during iteration
 type MPTMissingNodeHandler func(ctx context.Context, path Path, key Key) error
 
-//MerklePatriciaTrieI - interface of the merkle patricia trie
+// MerklePatriciaTrieI - interface of the merkle patricia trie
 type MerklePatriciaTrieI interface {
 	SetNodeDB(ndb NodeDB)
 	GetNodeDB() NodeDB
@@ -63,6 +63,7 @@ type MerklePatriciaTrieI interface {
 
 	// FindMissingNodes find all missing nodes in a MPT tree
 	FindMissingNodes(ctx context.Context) ([]Path, []Key, error)
+	FindMissingNodesInPath(path Path) ([]Key, error)
 	HasMissingNodes(ctx context.Context) (bool, error)
 	// only for testing and debugging
 	PrettyPrint(w io.Writer) error
@@ -74,7 +75,7 @@ type MerklePatriciaTrieI interface {
 	MergeDB(ndb NodeDB, root Key) error
 }
 
-//ContextKey - a type for context key
+// ContextKey - a type for context key
 type ContextKey string
 
 /*PruneStatsKey - key used to get the prune stats object from the context */

@@ -842,7 +842,7 @@ func doDelete(t *testing.T, mpt MerklePatriciaTrieI, key string, expErr error) {
 }
 
 /*
-  merge extensions : delete L from P(E(F(L,E))) and ensure P(E(F(E))) becomes P(E)
+merge extensions : delete L from P(E(F(L,E))) and ensure P(E(F(E))) becomes P(E)
 */
 func TestCasePEFLEdeleteL(t *testing.T) {
 	mndb := NewMemoryNodeDB()
@@ -2149,4 +2149,30 @@ func TestMPTFullToLeafNodeDelete(t *testing.T) {
 	doStrValInsert(t, mpt2, "23", "23")
 
 	doDelete(t, mpt2, "1245", nil)
+}
+
+func TestMPTFindMissingNodes(t *testing.T) {
+	mndb := NewMemoryNodeDB()
+	mpt := NewMerklePatriciaTrie(mndb, Sequence(0), nil)
+	db := NewLevelNodeDB(NewMemoryNodeDB(), mpt.db, false)
+	mpt2 := NewMerklePatriciaTrie(db, Sequence(0), nil)
+
+	doStrValInsert(t, mpt2, "12345897", "earth")
+	doStrValInsert(t, mpt2, "1234", "mars")
+	doStrValInsert(t, mpt2, "123456", "venus")
+	nodes, err := mpt2.GetPathNodes(Path("1234"))
+	require.NoError(t, err)
+	for _, n := range nodes {
+		fmt.Println(n.GetHash())
+	}
+
+	dk, err := fromHex("10ad1e05513ed0e075818d7351d623c05a48dd5c5ebeb6320bd90183fae72fb5")
+	require.NoError(t, err)
+	err = db.DeleteNode(Key(dk))
+	require.NoError(t, err)
+
+	ks, err := mpt2.FindMissingNodesInPath(Path("12345897"))
+	require.NoError(t, err)
+
+	require.Equal(t, ToHex(ks[0]), "10ad1e05513ed0e075818d7351d623c05a48dd5c5ebeb6320bd90183fae72fb5")
 }
