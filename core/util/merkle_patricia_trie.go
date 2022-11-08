@@ -6,11 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/0chain/common/core/common"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/0chain/common/core/common"
 
 	"github.com/0chain/common/core/logging"
 	. "github.com/0chain/common/core/logging"
@@ -38,7 +39,7 @@ func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key) *MerklePatrici
 	return mpt
 }
 
-//CloneMPT - clone an existing MPT so it can go off of a different root
+// CloneMPT - clone an existing MPT so it can go off of a different root
 func CloneMPT(mpt MerklePatriciaTrieI) *MerklePatriciaTrie {
 	clone := NewMerklePatriciaTrie(mpt.GetNodeDB(), mpt.GetVersion(), mpt.GetRoot())
 	return clone
@@ -65,13 +66,13 @@ func (mpt *MerklePatriciaTrie) getNodeDB() NodeDB {
 	return mpt.db
 }
 
-//SetVersion - implement interface
+// SetVersion - implement interface
 func (mpt *MerklePatriciaTrie) SetVersion(version Sequence) {
 	current := (*int64)(&mpt.Version)
 	atomic.StoreInt64(current, int64(version))
 }
 
-//GetVersion - implement interface
+// GetVersion - implement interface
 func (mpt *MerklePatriciaTrie) GetVersion() Sequence {
 	current := (*int64)(&mpt.Version)
 	return Sequence(atomic.LoadInt64(current))
@@ -178,7 +179,7 @@ func (mpt *MerklePatriciaTrie) Delete(path Path) (Key, error) {
 	return newRootHash, nil
 }
 
-//GetPathNodes - implement interface */
+// GetPathNodes - implement interface */
 func (mpt *MerklePatriciaTrie) GetPathNodes(path Path) ([]Node, error) {
 	mpt.mutex.RLock()
 	defer mpt.mutex.RUnlock()
@@ -1010,6 +1011,68 @@ func (mpt *MerklePatriciaTrie) FindMissingNodes(ctx context.Context) ([]Path, []
 	return paths, keys, nil
 }
 
+// FindMissingNodesInPath finds missing nodes in the given path
+func (mpt *MerklePatriciaTrie) FindMissingNodesInPath(path Path) ([]Key, error) {
+	if _, err := hex.DecodeString(string(path)); err != nil {
+		return nil, fmt.Errorf("invalid hex path: path=%q, err=%v", string(path), err)
+	}
+
+	mpt.mutex.RLock()
+	defer mpt.mutex.RUnlock()
+
+	rootKey := []byte(mpt.root)
+	if len(rootKey) == 0 {
+		return nil, errors.New("empty root")
+	}
+
+	// Note: if root key could not be found, we may need to sync blocks
+	rootNode, err := mpt.db.GetNode(rootKey)
+	if err != nil || rootNode == nil {
+		return []Key{rootKey}, nil
+	}
+
+	return mpt.findMissingNodesInPath(path, rootNode, []Key{}), nil
+}
+
+func (mpt *MerklePatriciaTrie) findMissingNodesInPath(path Path, node Node, keys []Key) []Key {
+	switch nodeImpl := node.(type) {
+	case *LeafNode:
+		return keys
+	case *FullNode:
+		if len(path) == 0 {
+			return keys
+		}
+		ckey := nodeImpl.GetChild(path[0])
+		if ckey == nil {
+			return keys
+		}
+
+		nnode, err := mpt.db.GetNode(ckey)
+		if err != nil || nnode == nil {
+			keys = append(keys, ckey)
+
+			return keys
+		}
+		return mpt.findMissingNodesInPath(path[1:], nnode, keys)
+	case *ExtensionNode:
+		prefix := mpt.matchingPrefix(path, nodeImpl.Path)
+		if len(prefix) == 0 {
+			return keys
+		}
+		if bytes.Equal(nodeImpl.Path, prefix) {
+			nnode, err := mpt.db.GetNode(nodeImpl.NodeKey)
+			if err != nil || nnode == nil {
+				keys = append(keys, nodeImpl.NodeKey)
+				return keys
+			}
+			return mpt.findMissingNodesInPath(path[len(prefix):], nnode, keys)
+		}
+		return keys
+	default:
+		panic(fmt.Sprintf("unknown node type: %T %v", node, node))
+	}
+}
+
 // HasMissingNodes returns immediately when a missing node is detected
 func (mpt *MerklePatriciaTrie) HasMissingNodes(ctx context.Context) (bool, error) {
 	paths := make([]Path, 0, BatchSize)
@@ -1045,7 +1108,7 @@ func IsMPTValid(mpt MerklePatriciaTrieI) error {
 	return mpt.Iterate(context.TODO(), func(ctxt context.Context, path Path, key Key, node Node) error { return nil }, NodeTypeLeafNode|NodeTypeFullNode|NodeTypeExtensionNode)
 }
 
-//Validate - implement interface - any sort of validations that can tell if the MPT is in a sane state
+// Validate - implement interface - any sort of validations that can tell if the MPT is in a sane state
 func (mpt *MerklePatriciaTrie) Validate() error {
 	mpt.mutex.RLock()
 	defer mpt.mutex.RUnlock()
