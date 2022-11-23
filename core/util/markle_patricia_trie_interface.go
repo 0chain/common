@@ -55,16 +55,8 @@ type MerklePatriciaTrieI interface {
 	GetChangeCount() int
 	SaveChanges(ctx context.Context, ndb NodeDB, includeDeletes bool) error
 
-	// useful for syncing up
-	GetPathNodes(path Path) ([]Node, error)
-
-	// useful for pruning the state below a certain origin number
-	UpdateVersion(ctx context.Context, version Sequence, missingNodeHander MPTMissingNodeHandler) error // mark
-
-	// FindMissingNodes find all missing nodes in a MPT tree
-	FindMissingNodes(ctx context.Context) ([]Path, []Key, error)
-	FindMissingNodesInPath(path Path) ([]Key, error)
 	HasMissingNodes(ctx context.Context) (bool, error)
+	GetMissingNodeKeys() []Key
 	// only for testing and debugging
 	PrettyPrint(w io.Writer) error
 
