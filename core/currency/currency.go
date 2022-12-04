@@ -8,6 +8,10 @@ import (
 )
 
 const (
+	ZCN  = 1e10
+	MZCN = 1e7
+	UZCN = 1e4
+
 	ZCNExponent  = 10
 	MZCNExponent = 7
 	UZCNExponent = 4
