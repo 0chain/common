@@ -25,6 +25,7 @@ type MerklePatriciaTrie struct {
 	db              NodeDB
 	ChangeCollector ChangeCollectorI
 	Version         Sequence
+	missingNodeKeys []Key
 }
 
 /*NewMerklePatriciaTrie - create a new patricia merkle trie */
@@ -43,6 +44,26 @@ func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key) *MerklePatrici
 func CloneMPT(mpt MerklePatriciaTrieI) *MerklePatriciaTrie {
 	clone := NewMerklePatriciaTrie(mpt.GetNodeDB(), mpt.GetVersion(), mpt.GetRoot())
 	return clone
+}
+
+func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
+	n, err = mpt.db.GetNode(key)
+	if err == ErrNodeNotFound {
+		mpt.addMissingNodeKeys(key)
+	}
+	return
+}
+
+func (mpt *MerklePatriciaTrie) addMissingNodeKeys(key Key) {
+	mpt.missingNodeKeys = append(mpt.missingNodeKeys, key)
+}
+
+func (mpt *MerklePatriciaTrie) GetMissingNodeKeys() []Key {
+	mpt.mutex.RLock()
+	keys := make([]Key, len(mpt.missingNodeKeys))
+	copy(keys, mpt.missingNodeKeys)
+	mpt.mutex.RUnlock()
+	return keys
 }
 
 /*SetNodeDB - implement interface */
@@ -114,7 +135,7 @@ func (mpt *MerklePatriciaTrie) GetNodeValueRaw(path Path) ([]byte, error) {
 		return nil, ErrValueNotPresent
 	}
 
-	rootNode, err := mpt.db.GetNode(rootKey)
+	rootNode, err := mpt.getNode(rootKey)
 	if err != nil {
 		return nil, err
 	}
@@ -177,65 +198,6 @@ func (mpt *MerklePatriciaTrie) Delete(path Path) (Key, error) {
 	}
 	mpt.setRoot(newRootHash)
 	return newRootHash, nil
-}
-
-// GetPathNodes - implement interface */
-func (mpt *MerklePatriciaTrie) GetPathNodes(path Path) ([]Node, error) {
-	mpt.mutex.RLock()
-	defer mpt.mutex.RUnlock()
-
-	nodes, err := mpt.getPathNodes(mpt.root, path)
-	if err != nil {
-		return nil, err
-	}
-	for i, j := 0, len(nodes)-1; i < j; i, j = i+1, j-1 {
-		nodes[i], nodes[j] = nodes[j], nodes[i]
-	}
-	return nodes, nil
-}
-
-func (mpt *MerklePatriciaTrie) getPathNodes(key Key, path Path) ([]Node, error) {
-	if len(path) == 0 {
-		return nil, nil
-	}
-	node, err := mpt.db.GetNode(key)
-	if err != nil {
-		return nil, err
-	}
-	switch nodeImpl := node.(type) {
-	case *LeafNode:
-		if bytes.Equal(nodeImpl.Path, path) {
-			return []Node{node}, nil
-		}
-		return nil, ErrValueNotPresent
-	case *FullNode:
-		ckey := nodeImpl.GetChild(path[0])
-		if ckey == nil {
-			return nil, ErrValueNotPresent
-		}
-		npath, err := mpt.getPathNodes(ckey, path[1:])
-		if err != nil {
-			return nil, err
-		}
-		npath = append(npath, node)
-		return npath, nil
-	case *ExtensionNode:
-		prefix := mpt.matchingPrefix(path, nodeImpl.Path)
-		if len(prefix) == 0 {
-			return nil, ErrValueNotPresent
-		}
-		if bytes.Equal(nodeImpl.Path, prefix) {
-			npath, err := mpt.getPathNodes(nodeImpl.NodeKey, path[len(prefix):])
-			if err != nil {
-				return nil, err
-			}
-			npath = append(npath, node)
-			return npath, nil
-		}
-		return nil, ErrValueNotPresent
-	default:
-		panic(fmt.Sprintf("unknown node type: %T %v", node, node))
-	}
 }
 
 /*GetChanges - implement interface */
@@ -359,7 +321,7 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 			return nil, ErrValueNotPresent
 		}
 
-		nnode, err := mpt.db.GetNode(ckey)
+		nnode, err := mpt.getNode(ckey)
 		if err != nil || nnode == nil {
 			if err != nil {
 				Logger.Error("full node get node failed",
@@ -377,7 +339,7 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 			return nil, ErrValueNotPresent
 		}
 		if bytes.Equal(nodeImpl.Path, prefix) {
-			nnode, err := mpt.db.GetNode(nodeImpl.NodeKey)
+			nnode, err := mpt.getNode(nodeImpl.NodeKey)
 			if err != nil || nnode == nil {
 				if err != nil {
 					Logger.Error("extension node get node failed", zap.Error(err))
@@ -393,7 +355,7 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 }
 
 func (mpt *MerklePatriciaTrie) insert(value MPTSerializable, key Key, prefix, path Path) (Node, Key, error) {
-	node, err := mpt.db.GetNode(key)
+	node, err := mpt.getNode(key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -416,7 +378,7 @@ func (mpt *MerklePatriciaTrie) delete(key Key, prefix, path Path) (Node, Key, er
 	if key == nil {
 		return nil, nil, ErrValueNotPresent
 	}
-	node, err := mpt.db.GetNode(key)
+	node, err := mpt.getNode(key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -622,7 +584,7 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(node Node, prefix, path Path) (Node,
 							break
 						}
 					}
-					ochild, err := mpt.db.GetNode(otherChildKey)
+					ochild, err := mpt.getNode(otherChildKey)
 					if err != nil {
 						return nil, nil, err
 					}
@@ -780,7 +742,7 @@ func (mpt *MerklePatriciaTrie) iterate(ctx context.Context, path Path, key Key, 
 	default:
 	}
 
-	node, err := mpt.db.GetNode(key)
+	node, err := mpt.getNode(key)
 	if err != nil {
 		if herr := handler(ctx, path, key, node); herr != nil {
 			return herr
@@ -899,7 +861,7 @@ func (mpt *MerklePatriciaTrie) pp(w io.Writer, key Key, depth byte, initpad bool
 	if initpad {
 		mpt.indent(w, depth)
 	}
-	node, err := mpt.db.GetNode(key)
+	node, err := mpt.getNode(key)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "err %v %v\n", ToHex(key), err)
 		return err
@@ -924,153 +886,6 @@ func (mpt *MerklePatriciaTrie) pp(w io.Writer, key Key, depth byte, initpad bool
 		}
 	}
 	return nil
-}
-
-/*UpdateVersion - updates the origin of all the nodes in this tree to the given origin */
-func (mpt *MerklePatriciaTrie) UpdateVersion(ctx context.Context, version Sequence, missingNodeHander MPTMissingNodeHandler) error {
-	mpt.mutex.RLock()
-	defer mpt.mutex.RUnlock()
-
-	ps := GetPruneStats(ctx)
-	if ps != nil {
-		ps.Version = version
-	}
-	keys := make([]Key, 0, BatchSize)
-	values := make([]Node, 0, BatchSize)
-	var count int64
-	var missingNodes int64
-	handler := func(ctx context.Context, path Path, key Key, node Node) error {
-		if node == nil {
-			_ = missingNodeHander(ctx, path, key)
-			missingNodes++
-			return nil
-		}
-		if node.GetVersion() >= version {
-			return nil
-		}
-		count++
-		node.SetVersion(version)
-		tkey := make([]byte, len(key))
-		copy(tkey, key)
-		keys = append(keys, tkey)
-		values = append(values, node)
-		if len(keys) == BatchSize {
-			err := mpt.db.MultiPutNode(keys, values)
-			keys = keys[:0]
-			values = values[:0]
-			if err != nil {
-				Logger.Error("update version - multi put", zap.String("path", string(path)), zap.String("key", ToHex(key)), zap.Any("old_version", node.GetVersion()), zap.Any("new_version", version), zap.Error(err))
-			}
-			return err
-		}
-		return nil
-	}
-	err := mpt.Iterate(ctx, handler, NodeTypeLeafNode|NodeTypeFullNode|NodeTypeExtensionNode)
-	if ps != nil {
-		ps.BelowVersion = count
-		ps.MissingNodes = missingNodes
-	}
-	if err == nil || err == ErrNodeNotFound || err == ErrIteratingChildNodes {
-		if len(keys) > 0 {
-			if err := mpt.db.MultiPutNode(keys, values); err != nil {
-				Logger.Error("update version - multi put - last batch", zap.Error(err))
-				return err
-			}
-		}
-	}
-	return err
-}
-
-// FindMissingNodes returns the paths and keys of missing nodes
-func (mpt *MerklePatriciaTrie) FindMissingNodes(ctx context.Context) ([]Path, []Key, error) {
-	paths := make([]Path, 0, BatchSize)
-	keys := make([]Key, 0, BatchSize)
-	handler := func(ctx context.Context, path Path, key Key, node Node) error {
-		if node == nil {
-			paths = append(paths, path)
-			keys = append(keys, key)
-		}
-		return nil
-	}
-
-	st := time.Now()
-	// TODO: may have dead lock for the iterate
-	err := mpt.Iterate(ctx, handler, NodeTypeLeafNode|NodeTypeFullNode|NodeTypeExtensionNode)
-	if err != nil {
-		switch err {
-		case ErrNodeNotFound, ErrIteratingChildNodes:
-			Logger.Debug("Find missing nodes err", zap.Error(err))
-		default:
-			Logger.Error("Find missing node with unexpected err", zap.Error(err))
-			return nil, nil, err
-		}
-	}
-
-	Logger.Debug("Find missing nodes iteration time", zap.Any("duration", time.Since(st)))
-
-	return paths, keys, nil
-}
-
-// FindMissingNodesInPath finds missing nodes in the given path
-func (mpt *MerklePatriciaTrie) FindMissingNodesInPath(path Path) ([]Key, error) {
-	if _, err := hex.DecodeString(string(path)); err != nil {
-		return nil, fmt.Errorf("invalid hex path: path=%q, err=%v", string(path), err)
-	}
-
-	mpt.mutex.RLock()
-	defer mpt.mutex.RUnlock()
-
-	rootKey := []byte(mpt.root)
-	if len(rootKey) == 0 {
-		return nil, errors.New("empty root")
-	}
-
-	// Note: if root key could not be found, we may need to sync blocks
-	rootNode, err := mpt.db.GetNode(rootKey)
-	if err != nil || rootNode == nil {
-		return []Key{rootKey}, nil
-	}
-
-	return mpt.findMissingNodesInPath(path, rootNode, []Key{}), nil
-}
-
-func (mpt *MerklePatriciaTrie) findMissingNodesInPath(path Path, node Node, keys []Key) []Key {
-	switch nodeImpl := node.(type) {
-	case *LeafNode:
-		return keys
-	case *FullNode:
-		if len(path) == 0 {
-			return keys
-		}
-		ckey := nodeImpl.GetChild(path[0])
-		if ckey == nil {
-			return keys
-		}
-
-		nnode, err := mpt.db.GetNode(ckey)
-		if err != nil || nnode == nil {
-			keys = append(keys, ckey)
-
-			return keys
-		}
-		return mpt.findMissingNodesInPath(path[1:], nnode, keys)
-	case *ExtensionNode:
-		prefix := mpt.matchingPrefix(path, nodeImpl.Path)
-		if len(prefix) == 0 {
-			return keys
-		}
-		if bytes.Equal(nodeImpl.Path, prefix) {
-			nnode, err := mpt.db.GetNode(nodeImpl.NodeKey)
-			if err != nil || nnode == nil {
-				keys = append(keys, nodeImpl.NodeKey)
-				return keys
-			}
-			return mpt.findMissingNodesInPath(path[len(prefix):], nnode, keys)
-		}
-		return keys
-	default:
-		panic(fmt.Sprintf("unknown node type: %T %v", node, node))
-	}
 }
 
 // HasMissingNodes returns immediately when a missing node is detected
