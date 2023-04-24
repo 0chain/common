@@ -132,6 +132,7 @@ func (mpt *MerklePatriciaTrie) GetNodeValueRaw(path Path) ([]byte, error) {
 
 	rootKey := []byte(mpt.root)
 	if len(rootKey) == 0 {
+		logging.Logger.Error("MPT value not present - empty root")
 		return nil, ErrValueNotPresent
 	}
 
@@ -301,16 +302,19 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 		if bytes.Equal(nodeImpl.Path, path) {
 			d := nodeImpl.GetValueBytes()
 			if len(d) == 0 {
+				logging.Logger.Debug("MPT - value not present, leaf node value is empty")
 				return nil, ErrValueNotPresent
 			}
 
 			return d, nil
 		}
+		logging.Logger.Debug("MPT - value not present, leaf node path not found")
 		return nil, ErrValueNotPresent
 	case *FullNode:
 		if len(path) == 0 {
 			d := nodeImpl.GetValueBytes()
 			if len(d) == 0 {
+				logging.Logger.Debug("MPT - value not present, full node, empty value")
 				return nil, ErrValueNotPresent
 			}
 
@@ -318,6 +322,7 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 		}
 		ckey := nodeImpl.GetChild(path[0])
 		if ckey == nil {
+			logging.Logger.Debug("MPT - value not present, full node, path[0] not in child list")
 			return nil, ErrValueNotPresent
 		}
 
@@ -336,6 +341,7 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 	case *ExtensionNode:
 		prefix := mpt.matchingPrefix(path, nodeImpl.Path)
 		if len(prefix) == 0 {
+			logging.Logger.Debug("MPT - value not present, ext node, no match prefix path")
 			return nil, ErrValueNotPresent
 		}
 		if bytes.Equal(nodeImpl.Path, prefix) {
@@ -348,6 +354,7 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 			}
 			return mpt.getNodeValueRaw(path[len(prefix):], nnode)
 		}
+		logging.Logger.Debug("MPT - value not present, ext node, prefix match not all")
 		return nil, ErrValueNotPresent
 	default:
 		panic(fmt.Sprintf("unknown node type: %T %v", node, node))
@@ -376,6 +383,7 @@ func (mpt *MerklePatriciaTrie) insertExtension(oldNode Node, path Path, key Key)
 
 func (mpt *MerklePatriciaTrie) delete(key Key, prefix, path Path) (Node, Key, error) {
 	if key == nil {
+		logging.Logger.Debug("MPT - value not present, delete key is nil")
 		return nil, nil, ErrValueNotPresent
 	}
 	node, err := mpt.getNode(key)
@@ -630,10 +638,12 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(node Node, prefix, path Path) (Node,
 			return mpt.deleteAfterPathTraversal(node)
 		}
 
+		logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match")
 		return nil, nil, ErrValueNotPresent // There is nothing to delete
 	case *ExtensionNode:
 		matchPrefix := mpt.matchingPrefix(path, nodeImpl.Path)
 		if !bytes.Equal(matchPrefix, nodeImpl.Path) {
+			logging.Logger.Debug("MPT - value not present, deleteAtNode, ext node, prefix partially match")
 			return nil, nil, ErrValueNotPresent // There is nothing to delete
 		}
 
