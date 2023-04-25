@@ -300,8 +300,9 @@ func (mndb *MemoryNodeDB) Validate(root Node) error {
 }
 
 // validate - validate this MemoryNodeDB w.r.t the given root
-//  It should not contain any node that can't be reachable from the root.
-//  Note: The root itself can reach nodes not present in this db
+//
+//	It should not contain any node that can't be reachable from the root.
+//	Note: The root itself can reach nodes not present in this db
 func (mndb *MemoryNodeDB) validate(root Node) error {
 	nodes := map[StrKey]Node{
 		StrKey(root.GetHashBytes()): root,

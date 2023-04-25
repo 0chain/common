@@ -792,6 +792,13 @@ func (mpt *MerklePatriciaTrie) iterate(ctx context.Context, path Path, key Key, 
 			}
 			npath := append(path, pe)
 			if err := mpt.iterate(ctx, npath, child, handler, visitNodeTypes); err != nil {
+				switch err {
+				case ErrNodeNotFound, ErrIteratingChildNodes, ErrMissingNodes:
+					ecount++
+				default:
+					Logger.Error("iterate - child node", zap.Error(err))
+					return err
+				}
 				if err == ErrNodeNotFound || err == ErrIteratingChildNodes {
 					ecount++
 				} else {
