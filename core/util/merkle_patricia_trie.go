@@ -393,7 +393,7 @@ func (mpt *MerklePatriciaTrie) delete(key Key, prefix, path Path) (Node, Key, er
 	if len(path) == 0 {
 		return mpt.deleteAfterPathTraversal(node)
 	}
-	return mpt.deleteAtNode(node, prefix, path)
+	return mpt.deleteAtNode(key, node, prefix, path)
 }
 
 func (mpt *MerklePatriciaTrie) insertAtNode(value MPTSerializable, node Node, prefix, path Path) (Node, Key, error) {
@@ -559,7 +559,7 @@ func concat(s1 []byte, s2 ...byte) []byte {
 	return r
 }
 
-func (mpt *MerklePatriciaTrie) deleteAtNode(node Node, prefix, path Path) (Node, Key, error) {
+func (mpt *MerklePatriciaTrie) deleteAtNode(key Key, node Node, prefix, path Path) (Node, Key, error) {
 	switch nodeImpl := node.(type) {
 	case *FullNode:
 		_, ckey, err := mpt.delete(nodeImpl.GetChild(path[0]),
@@ -638,7 +638,13 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(node Node, prefix, path Path) (Node,
 			return mpt.deleteAfterPathTraversal(node)
 		}
 
-		logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match")
+		logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match",
+			zap.String("prefix path", ToHex(prefix)),
+			zap.String("path", ToHex(path)),
+			zap.String("node path", ToHex(nodeImpl.Path)),
+			zap.String("key", ToHex(key)),
+			zap.String("nodeImpl key", nodeImpl.GetHash()),
+			zap.Int64("node version", int64(nodeImpl.GetVersion())))
 		return nil, nil, ErrValueNotPresent // There is nothing to delete
 	case *ExtensionNode:
 		matchPrefix := mpt.matchingPrefix(path, nodeImpl.Path)
