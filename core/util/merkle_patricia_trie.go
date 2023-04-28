@@ -635,6 +635,13 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(key Key, node Node, prefix, path Pat
 		return mpt.insertNode(node, nnode)
 	case *LeafNode:
 		if bytes.Equal(path, nodeImpl.Path) {
+			logging.Logger.Debug("MPT - delete leaf node, deleteAtNode, leaf node",
+				zap.String("prefix path", ToHex(prefix)),
+				zap.String("path", ToHex(path)),
+				zap.String("node path", ToHex(nodeImpl.Path)),
+				zap.String("key", ToHex(key)),
+				zap.String("nodeImpl key", nodeImpl.GetHash()),
+				zap.Int64("node version", int64(nodeImpl.GetVersion())))
 			return mpt.deleteAfterPathTraversal(node)
 		}
 
