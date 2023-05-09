@@ -142,9 +142,9 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	for _, c := range cc.Changes {
 		// use old key as UpdateVersion would not change the key even the node has been updated
 		keys[idx] = c.New.GetHashBytes()
-		if origin != c.New.GetOrigin() {
-			c.New.SetOrigin(origin)
-		}
+		//if origin != c.New.GetOrigin() {
+		//	c.New.SetOrigin(origin)
+		//}
 
 		nodes[idx] = c.New
 		idx++
@@ -183,7 +183,7 @@ func PrintChanges(w io.Writer, changes []*NodeChange) {
 	}
 }
 
-//Validate - validate if this change collector is valid
+// Validate - validate if this change collector is valid
 func (cc *ChangeCollector) Validate() error {
 	cc.mutex.RLock()
 	defer cc.mutex.RUnlock()
