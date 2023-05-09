@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -134,6 +135,12 @@ func (mndb *MemoryNodeDB) GetNode(key Key) (Node, error) {
 func (mndb *MemoryNodeDB) PutNode(key Key, node Node) error {
 	mndb.mutex.Lock()
 	defer mndb.mutex.Unlock()
+	if !bytes.Equal(key, node.GetHashBytes()) {
+		logging.Logger.Error("put node key not match",
+			zap.String("key", ToHex(key)),
+			zap.String("node", ToHex(node.GetHashBytes())))
+	}
+
 	return mndb.putNode(key, node)
 }
 
@@ -164,6 +171,13 @@ func (mndb *MemoryNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	mndb.mutex.Lock()
 	defer mndb.mutex.Unlock()
 	for idx, key := range keys {
+		nd := nodes[idx]
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("put node key not match",
+				zap.String("key", ToHex(key)),
+				zap.String("node", ToHex(nd.GetHashBytes())))
+		}
+
 		err := mndb.putNode(key, nodes[idx])
 		if err != nil {
 			return err
@@ -444,6 +458,12 @@ func (lndb *LevelNodeDB) GetNode(key Key) (Node, error) {
 func (lndb *LevelNodeDB) PutNode(key Key, node Node) error {
 	lndb.mutex.Lock()
 	defer lndb.mutex.Unlock()
+	if !bytes.Equal(key, node.GetHashBytes()) {
+		logging.Logger.Error("put node key not match",
+			zap.String("key", ToHex(key)),
+			zap.String("node", ToHex(node.GetHashBytes())))
+	}
+
 	return lndb.putNode(key, node)
 }
 
@@ -474,6 +494,12 @@ func (lndb *LevelNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	lndb.mutex.Lock()
 	defer lndb.mutex.Unlock()
 	for idx, key := range keys {
+		nd := nodes[idx]
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("put node key not match",
+				zap.String("key", ToHex(key)),
+				zap.String("node", ToHex(nd.GetHashBytes())))
+		}
 		err := lndb.putNode(key, nodes[idx])
 		if err != nil {
 			return err
