@@ -100,11 +100,10 @@ func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
 			zap.String("node", ToHex(nd.GetHashBytes())))
 	}
 
-	if DebugMPTNode {
-		logging.Logger.Error("node put to memory",
-			zap.String("key", ToHex(key)),
-			zap.String("node", ToHex(nd.GetHashBytes())))
-	}
+	logging.Logger.Error("put node to memory",
+		zap.String("key", ToHex(key)),
+		zap.String("node", ToHex(nd.GetHashBytes())))
+
 	mndb.Nodes[StrKey(key)] = nd
 	return nil
 }

@@ -4,4 +4,4 @@
 package util
 
 // DebugMPTNode - for detailed debugging
-var DebugMPTNode = true
+var DebugMPTNode = false
