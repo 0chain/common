@@ -227,7 +227,7 @@ func (mpt *MerklePatriciaTrie) GetChangeCount() int {
 func (mpt *MerklePatriciaTrie) SaveChanges(ctx context.Context, ndb NodeDB, includeDeletes bool) error {
 	mpt.mutex.RLock()
 	defer mpt.mutex.RUnlock()
-	cc := mpt.ChangeCollector
+	cc := mpt.ChangeCollector.Clone()
 
 	doneC := make(chan struct{})
 	errC := make(chan error, 1)

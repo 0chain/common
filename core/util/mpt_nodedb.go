@@ -93,12 +93,19 @@ func (mndb *MemoryNodeDB) getNode(key Key) (Node, error) {
 
 // unsafe
 func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
-	if DebugMPTNode {
-		logging.Logger.Debug("node put to memory", zap.String("key", ToHex(key)),
-			zap.String("stack", string(debug.Stack())),
-		)
+	nd := node.Clone()
+	if !bytes.Equal(key, nd.GetHashBytes()) {
+		logging.Logger.Error("MPT - put node key not match",
+			zap.String("key", ToHex(key)),
+			zap.String("node", ToHex(nd.GetHashBytes())))
 	}
-	mndb.Nodes[StrKey(key)] = node
+
+	if DebugMPTNode {
+		logging.Logger.Error("node put to memory",
+			zap.String("key", ToHex(key)),
+			zap.String("node", ToHex(nd.GetHashBytes())))
+	}
+	mndb.Nodes[StrKey(key)] = nd
 	return nil
 }
 
@@ -135,12 +142,6 @@ func (mndb *MemoryNodeDB) GetNode(key Key) (Node, error) {
 func (mndb *MemoryNodeDB) PutNode(key Key, node Node) error {
 	mndb.mutex.Lock()
 	defer mndb.mutex.Unlock()
-	if !bytes.Equal(key, node.GetHashBytes()) {
-		logging.Logger.Error("put node key not match",
-			zap.String("key", ToHex(key)),
-			zap.String("node", ToHex(node.GetHashBytes())))
-	}
-
 	return mndb.putNode(key, node)
 }
 
@@ -171,13 +172,6 @@ func (mndb *MemoryNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	mndb.mutex.Lock()
 	defer mndb.mutex.Unlock()
 	for idx, key := range keys {
-		nd := nodes[idx]
-		if !bytes.Equal(key, nd.GetHashBytes()) {
-			logging.Logger.Error("put node key not match",
-				zap.String("key", ToHex(key)),
-				zap.String("node", ToHex(nd.GetHashBytes())))
-		}
-
 		err := mndb.putNode(key, nodes[idx])
 		if err != nil {
 			return err
@@ -429,6 +423,12 @@ func (lndb *LevelNodeDB) getNode(key Key) (Node, error) {
 
 // unsafe
 func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
+	nd := node.Clone()
+	if !bytes.Equal(key, nd.GetHashBytes()) {
+		logging.Logger.Error("MPT - put node key not match, level node",
+			zap.String("key", ToHex(key)),
+			zap.String("node_key", ToHex(nd.GetHashBytes())))
+	}
 	return lndb.current.PutNode(key, node)
 }
 
@@ -458,12 +458,6 @@ func (lndb *LevelNodeDB) GetNode(key Key) (Node, error) {
 func (lndb *LevelNodeDB) PutNode(key Key, node Node) error {
 	lndb.mutex.Lock()
 	defer lndb.mutex.Unlock()
-	if !bytes.Equal(key, node.GetHashBytes()) {
-		logging.Logger.Error("put node key not match",
-			zap.String("key", ToHex(key)),
-			zap.String("node", ToHex(node.GetHashBytes())))
-	}
-
 	return lndb.putNode(key, node)
 }
 
@@ -494,12 +488,6 @@ func (lndb *LevelNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	lndb.mutex.Lock()
 	defer lndb.mutex.Unlock()
 	for idx, key := range keys {
-		nd := nodes[idx]
-		if !bytes.Equal(key, nd.GetHashBytes()) {
-			logging.Logger.Error("put node key not match",
-				zap.String("key", ToHex(key)),
-				zap.String("node", ToHex(nd.GetHashBytes())))
-		}
 		err := lndb.putNode(key, nodes[idx])
 		if err != nil {
 			return err
