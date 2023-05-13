@@ -140,13 +140,8 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	nodes := make([]Node, len(cc.Changes))
 	idx := 0
 	for _, c := range cc.Changes {
-		// use old key as UpdateVersion would not change the key even the node has been updated
-		keys[idx] = c.New.GetHashBytes()
-		//if origin != c.New.GetOrigin() {
-		//	c.New.SetOrigin(origin)
-		//}
-
-		nodes[idx] = c.New
+		nodes[idx] = c.New.Clone()
+		keys[idx] = nodes[idx].GetHashBytes()
 		idx++
 	}
 	err := ndb.MultiPutNode(keys, nodes)

@@ -135,27 +135,14 @@ func (pndb *PNodeDB) PutNode(key Key, node Node) error {
 
 	err := pndb.db.Put(pndb.wo, key, data)
 
-	tn, err2 := CreateNode(bytes.NewReader(data))
-	if err2 != nil {
-		logging.Logger.Error("MPT - decode node failed",
+	if DebugMPTNode {
+		logging.Logger.Debug("MPT - put node to PersistDB",
 			zap.String("key", ToHex(key)),
 			zap.String("node key", ToHex(nd.GetHashBytes())),
-			zap.Error(err2))
-	} else {
-		if !bytes.Equal(key, tn.GetHashBytes()) {
-			logging.Logger.Error("MPT - put node key not match after decode",
-				zap.String("key", ToHex(key)),
-				zap.String("node key", ToHex(tn.GetHashBytes())))
-		}
+			zap.Int64("Origin", int64(nd.GetOrigin())),
+			zap.Int64("Version", int64(nd.GetVersion())),
+			zap.Error(err))
 	}
-
-	logging.Logger.Error("MPT - put node to PersistDB",
-		zap.String("key", ToHex(key)),
-		zap.String("node key", ToHex(nd.GetHashBytes())),
-		zap.Int64("Origin", int64(nd.GetOrigin())),
-		zap.Int64("Version", int64(nd.GetVersion())),
-		zap.Error(err))
-
 	return err
 }
 
@@ -356,27 +343,13 @@ func (pndb *PNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 
 		nv := nd.Encode()
 		wb.Put(key, nv)
-
-		tn, err := CreateNode(bytes.NewReader(nv))
-		if err != nil {
-			logging.Logger.Error("MPT - decode node failed",
+		if DebugMPTNode {
+			logging.Logger.Debug("MPT - put node to PersistDB, multiple",
 				zap.String("key", ToHex(key)),
 				zap.String("node", ToHex(nd.GetHashBytes())),
-				zap.Error(err))
-		} else {
-			if tn.GetHash() != ToHex(key) {
-				logging.Logger.Error("MPT - decode node hash not match",
-					zap.String("key", ToHex(key)),
-					zap.String("node", ToHex(nd.GetHashBytes())),
-					zap.String("node decode", ToHex(tn.GetHashBytes())))
-			}
+				zap.Int64("Origin", int64(nodes[idx].GetOrigin())),
+				zap.Int64("Version", int64(nodes[idx].GetVersion())))
 		}
-
-		logging.Logger.Error("MPT - put node to PersistDB, multiple",
-			zap.String("key", ToHex(key)),
-			zap.String("node", ToHex(nd.GetHashBytes())),
-			zap.Int64("Origin", int64(nodes[idx].GetOrigin())),
-			zap.Int64("Version", int64(nodes[idx].GetVersion())))
 	}
 	err := pndb.db.Write(pndb.wo, wb)
 	if err != nil {
