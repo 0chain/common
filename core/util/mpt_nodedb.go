@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -92,12 +93,16 @@ func (mndb *MemoryNodeDB) getNode(key Key) (Node, error) {
 
 // unsafe
 func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
+	nd := node.Clone()
 	if DebugMPTNode {
-		logging.Logger.Debug("node put to memory", zap.String("key", ToHex(key)),
-			zap.String("stack", string(debug.Stack())),
-		)
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("MPT - put node key not match",
+				zap.String("key", ToHex(key)),
+				zap.String("node", ToHex(nd.GetHashBytes())))
+		}
 	}
-	mndb.Nodes[StrKey(key)] = node
+
+	mndb.Nodes[StrKey(key)] = nd
 	return nil
 }
 
@@ -300,8 +305,9 @@ func (mndb *MemoryNodeDB) Validate(root Node) error {
 }
 
 // validate - validate this MemoryNodeDB w.r.t the given root
-//  It should not contain any node that can't be reachable from the root.
-//  Note: The root itself can reach nodes not present in this db
+//
+//	It should not contain any node that can't be reachable from the root.
+//	Note: The root itself can reach nodes not present in this db
 func (mndb *MemoryNodeDB) validate(root Node) error {
 	nodes := map[StrKey]Node{
 		StrKey(root.GetHashBytes()): root,
@@ -414,6 +420,14 @@ func (lndb *LevelNodeDB) getNode(key Key) (Node, error) {
 
 // unsafe
 func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
+	nd := node.Clone()
+	if DebugMPTNode {
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("MPT - put node key not match, level node",
+				zap.String("key", ToHex(key)),
+				zap.String("node_key", ToHex(nd.GetHashBytes())))
+		}
+	}
 	return lndb.current.PutNode(key, node)
 }
 

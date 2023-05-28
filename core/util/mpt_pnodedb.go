@@ -125,13 +125,23 @@ func (pndb *PNodeDB) GetNode(key Key) (Node, error) {
 
 /*PutNode - implement interface */
 func (pndb *PNodeDB) PutNode(key Key, node Node) error {
-	data := node.Encode()
+	nd := node.Clone()
+	data := nd.Encode()
+	if !bytes.Equal(key, nd.GetHashBytes()) {
+		logging.Logger.Error("put node key not match",
+			zap.String("key", ToHex(key)),
+			zap.String("node", ToHex(nd.GetHashBytes())))
+	}
+
 	err := pndb.db.Put(pndb.wo, key, data)
+
 	if DebugMPTNode {
-		logging.Logger.Debug("node put to PersistDB",
-			zap.String("key", ToHex(key)), zap.Error(err),
-			zap.Int64("Origin", int64(node.GetOrigin())),
-			zap.Int64("Version", int64(node.GetVersion())))
+		logging.Logger.Debug("MPT - put node to PersistDB",
+			zap.String("key", ToHex(key)),
+			zap.String("node key", ToHex(nd.GetHashBytes())),
+			zap.Int64("Origin", int64(nd.GetOrigin())),
+			zap.Int64("Version", int64(nd.GetVersion())),
+			zap.Error(err))
 	}
 	return err
 }
@@ -324,10 +334,19 @@ func (pndb *PNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	wb := gorocksdb.NewWriteBatch()
 	defer wb.Destroy()
 	for idx, key := range keys {
-		wb.Put(key, nodes[idx].Encode())
-		if DebugMPTNode {
-			logging.Logger.Debug("multi node put to PersistDB",
+		nd := nodes[idx].Clone()
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("put node key not match",
 				zap.String("key", ToHex(key)),
+				zap.String("node", ToHex(nd.GetHashBytes())))
+		}
+
+		nv := nd.Encode()
+		wb.Put(key, nv)
+		if DebugMPTNode {
+			logging.Logger.Debug("MPT - put node to PersistDB, multiple",
+				zap.String("key", ToHex(key)),
+				zap.String("node", ToHex(nd.GetHashBytes())),
 				zap.Int64("Origin", int64(nodes[idx].GetOrigin())),
 				zap.Int64("Version", int64(nodes[idx].GetVersion())))
 		}

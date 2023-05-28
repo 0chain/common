@@ -3,5 +3,5 @@
 
 package util
 
-//DebugMPTNode - for detailed debugging
+// DebugMPTNode - for detailed debugging
 var DebugMPTNode = false
