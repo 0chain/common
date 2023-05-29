@@ -53,8 +53,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 		opts.SetAllowMmapReads(true)
 		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
 	}
-	opts.IncreaseParallelism(2)          // pruning and saving happen in parallel
-	opts.SetSkipLogErrorOnRecovery(true) // do sync if necessary
+	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
 	opts.EnableStatistics()
 	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
