@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/0chain/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +38,7 @@ func TestPNodeDB_Iterate(t *testing.T) {
 			pndb, cleanUp := newPNodeDB(t)
 			defer cleanUp()
 
-			wo := gorocksdb.NewDefaultWriteOptions()
+			wo := grocksdb.NewDefaultWriteOptions()
 			for i := 0; i < 1000; i++ {
 				key := make([]byte, 8)
 				binary.BigEndian.PutUint64(key, uint64(i))

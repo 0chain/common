@@ -15,7 +15,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/0chain/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -1259,7 +1259,7 @@ func TestMerklePatriciaTrie_Insert(t *testing.T) {
 	db, cleanup := newPNodeDB(t)
 	defer cleanup()
 
-	db.wo = gorocksdb.NewDefaultWriteOptions()
+	db.wo = grocksdb.NewDefaultWriteOptions()
 	db.wo.SetSync(true)
 	db.wo.DisableWAL(true)
 
@@ -1663,7 +1663,7 @@ func TestMerklePatriciaTrie_insertAtNode(t *testing.T) {
 	t.Parallel()
 	db, cleanup := newPNodeDB(t)
 	defer cleanup()
-	db.wo = gorocksdb.NewDefaultWriteOptions()
+	db.wo = grocksdb.NewDefaultWriteOptions()
 	db.wo.SetSync(true)
 	db.wo.DisableWAL(true)
 
