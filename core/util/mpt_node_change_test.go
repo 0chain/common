@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/0chain/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +75,7 @@ func TestChangeCollector_UpdateChanges(t *testing.T) {
 	pndb, cleanup := newPNodeDB(t)
 	defer cleanup()
 
-	pndb.wo = gorocksdb.NewDefaultWriteOptions()
+	pndb.wo = grocksdb.NewDefaultWriteOptions()
 	pndb.wo.DisableWAL(true)
 	pndb.wo.SetSync(true)
 

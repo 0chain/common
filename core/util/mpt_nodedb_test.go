@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0chain/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1090,7 +1090,7 @@ func TestLevelNodeDB_MultiPutNode(t *testing.T) {
 	current, cleanup := newPNodeDB(t)
 	defer cleanup()
 
-	current.wo = gorocksdb.NewDefaultWriteOptions()
+	current.wo = grocksdb.NewDefaultWriteOptions()
 	current.wo.DisableWAL(true)
 	current.wo.SetSync(true)
 

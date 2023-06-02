@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0chain/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 
 	"github.com/0chain/common/core/logging"
 	"go.uber.org/zap"
@@ -15,17 +15,17 @@ import (
 
 /*PNodeDB - a node db that is persisted */
 type PNodeDB struct {
-	db *gorocksdb.DB
+	db *grocksdb.DB
 
-	ro      *gorocksdb.ReadOptions
-	wo      *gorocksdb.WriteOptions
-	to      *gorocksdb.TransactionOptions
-	fo      *gorocksdb.FlushOptions
+	ro      *grocksdb.ReadOptions
+	wo      *grocksdb.WriteOptions
+	to      *grocksdb.TransactionOptions
+	fo      *grocksdb.FlushOptions
 	mutex   sync.Mutex
 	version int64
 
-	defaultCFH   *gorocksdb.ColumnFamilyHandle
-	deadNodesCFH *gorocksdb.ColumnFamilyHandle
+	defaultCFH   *grocksdb.ColumnFamilyHandle
+	deadNodesCFH *grocksdb.ColumnFamilyHandle
 }
 
 const (
@@ -34,27 +34,26 @@ const (
 )
 
 var (
-	PNodeDBCompression = gorocksdb.LZ4Compression
+	PNodeDBCompression = grocksdb.LZ4Compression
 	deadNodesKey       = []byte("dead_nodes")
 )
 
 var sstType = SSTTypeBlockBasedTable
 
-func newDefaultCFOptions(logDir string) *gorocksdb.Options {
-	opts := gorocksdb.NewDefaultOptions()
+func newDefaultCFOptions(logDir string) *grocksdb.Options {
+	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
 	if sstType == SSTTypePlainTable {
 		opts.SetAllowMmapReads(true)
-		opts.SetPrefixExtractor(gorocksdb.NewFixedPrefixTransform(6))
+		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
 		opts.SetPlainTableFactory(32, 10, 0.75, 16)
 	} else {
 		opts.OptimizeForPointLookup(64)
 		opts.SetAllowMmapReads(true)
-		opts.SetPrefixExtractor(gorocksdb.NewFixedPrefixTransform(6))
+		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
 	}
-	opts.IncreaseParallelism(2)          // pruning and saving happen in parallel
-	opts.SetSkipLogErrorOnRecovery(true) // do sync if necessary
+	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
 	opts.EnableStatistics()
 	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
@@ -62,18 +61,18 @@ func newDefaultCFOptions(logDir string) *gorocksdb.Options {
 	return opts
 }
 
-func newDeadNodesCFOptions() *gorocksdb.Options {
-	bbto := gorocksdb.NewDefaultBlockBasedTableOptions()
-	bbto.SetBlockCache(gorocksdb.NewLRUCache(3 << 30))
-	opts := gorocksdb.NewDefaultOptions()
+func newDeadNodesCFOptions() *grocksdb.Options {
+	bbto := grocksdb.NewDefaultBlockBasedTableOptions()
+	bbto.SetBlockCache(grocksdb.NewLRUCache(3 << 30))
+	opts := grocksdb.NewDefaultOptions()
 	opts.SetKeepLogFileNum(5)
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
 	return opts
 }
 
-func newDBOptions() *gorocksdb.Options {
-	opts := gorocksdb.NewDefaultOptions()
+func newDBOptions() *grocksdb.Options {
+	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetCreateIfMissingColumnFamilies(true)
 	return opts
@@ -87,25 +86,25 @@ func NewPNodeDB(stateDir, logDir string) (*PNodeDB, error) {
 		deadNodesOpts = newDeadNodesCFOptions()
 
 		cfs     = []string{"default", "dead_nodes"}
-		cfsOpts = []*gorocksdb.Options{defaultCFOpts, deadNodesOpts}
+		cfsOpts = []*grocksdb.Options{defaultCFOpts, deadNodesOpts}
 	)
 
-	db, cfhs, err := gorocksdb.OpenDbColumnFamilies(newDBOptions(), stateDir, cfs, cfsOpts)
+	db, cfhs, err := grocksdb.OpenDbColumnFamilies(newDBOptions(), stateDir, cfs, cfsOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	wo := gorocksdb.NewDefaultWriteOptions()
+	wo := grocksdb.NewDefaultWriteOptions()
 	wo.SetSync(false)
 
 	return &PNodeDB{
 		db:           db,
 		defaultCFH:   cfhs[0],
 		deadNodesCFH: cfhs[1],
-		ro:           gorocksdb.NewDefaultReadOptions(),
+		ro:           grocksdb.NewDefaultReadOptions(),
 		wo:           wo,
-		to:           gorocksdb.NewDefaultTransactionOptions(),
-		fo:           gorocksdb.NewDefaultFlushOptions(),
+		to:           grocksdb.NewDefaultTransactionOptions(),
+		fo:           grocksdb.NewDefaultFlushOptions(),
 	}, nil
 }
 
@@ -271,7 +270,7 @@ func bytesToUint64(data []byte) uint64 {
 
 /*MultiDeleteNode - implement interface */
 func (pndb *PNodeDB) multiDeleteDeadNodes(rounds []uint64) error {
-	wb := gorocksdb.NewWriteBatch()
+	wb := grocksdb.NewWriteBatch()
 	defer wb.Destroy()
 	for _, r := range rounds {
 		wb.DeleteCF(pndb.deadNodesCFH, uint64ToBytes(r))
@@ -280,7 +279,7 @@ func (pndb *PNodeDB) multiDeleteDeadNodes(rounds []uint64) error {
 }
 
 func (pndb *PNodeDB) iteratorDeadNodes(ctx context.Context, handler func(key, value []byte) bool) {
-	ro := gorocksdb.NewDefaultReadOptions()
+	ro := grocksdb.NewDefaultReadOptions()
 	defer ro.Destroy()
 	ro.SetFillCache(false)
 	it := pndb.db.NewIteratorCF(ro, pndb.deadNodesCFH)
@@ -331,7 +330,7 @@ func (pndb *PNodeDB) MultiGetNode(keys []Key) ([]Node, error) {
 /*MultiPutNode - implement interface */
 func (pndb *PNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	ts := time.Now()
-	wb := gorocksdb.NewWriteBatch()
+	wb := grocksdb.NewWriteBatch()
 	defer wb.Destroy()
 	for idx, key := range keys {
 		nd := nodes[idx].Clone()
@@ -363,7 +362,7 @@ func (pndb *PNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 
 /*MultiDeleteNode - implement interface */
 func (pndb *PNodeDB) MultiDeleteNode(keys []Key) error {
-	wb := gorocksdb.NewWriteBatch()
+	wb := grocksdb.NewWriteBatch()
 	defer wb.Destroy()
 	for _, key := range keys {
 		wb.Delete(key)
@@ -373,7 +372,7 @@ func (pndb *PNodeDB) MultiDeleteNode(keys []Key) error {
 
 /*Iterate - implement interface */
 func (pndb *PNodeDB) Iterate(ctx context.Context, handler NodeDBIteratorHandler) error {
-	ro := gorocksdb.NewDefaultReadOptions()
+	ro := grocksdb.NewDefaultReadOptions()
 	defer ro.Destroy()
 	ro.SetFillCache(false)
 	it := pndb.db.NewIterator(ro)
