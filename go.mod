@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/linxGnu/grocksdb v1.8.0
 	github.com/shopspring/decimal v1.3.1
+	github.com/skycoin/skycoin v0.27.1
 	github.com/spf13/cast v1.5.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0

@@ -4,10 +4,10 @@ import (
 	"encoding/hex"
 
 	"github.com/0chain/common/core/common"
-	"golang.org/x/crypto/sha3"
+	"github.com/skycoin/skycoin/src/cipher"
 )
 
-//ErrInvalidHash - hash is invalid error
+// ErrInvalidHash - hash is invalid error
 var ErrInvalidHash = common.NewError("invalid_hash", "Invalid hash")
 
 const HASH_LENGTH = 32
@@ -24,10 +24,10 @@ func IsHash(str string) bool {
 	return err == nil && len(bytes) == HASH_LENGTH
 }
 
-//EmptyHash - hash of an empty string
+// EmptyHash - hash of an empty string
 var EmptyHash = Hash("")
 
-//EmptyHashBytes - hash bytes of an empty string
+// EmptyHashBytes - hash bytes of an empty string
 var EmptyHashBytes = RawHash("")
 
 /*RawHash - Logic to hash the text and return the hash bytes */
@@ -43,8 +43,13 @@ func RawHash(data interface{}) []byte {
 	default:
 		panic("unknown type")
 	}
-	hash := sha3.New256()
-	hash.Write(databuf)
-	var buf []byte
-	return hash.Sum(buf)
+	//hash := sha3.New256()
+	//hash.Write(databuf)
+	//var buf []byte
+	//return hash.Sum(buf)
+	s := cipher.SumSHA256(databuf)
+	d := make([]byte, len(s))
+	copy(d[:], s[:])
+	//return
+	return d
 }
