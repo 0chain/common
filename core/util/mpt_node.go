@@ -22,13 +22,13 @@ const (
 	NodeTypesAll          = NodeTypeValueNode | NodeTypeLeafNode | NodeTypeFullNode | NodeTypeExtensionNode
 )
 
-//Separator - used to separate fields when creating data array to hash
+// Separator - used to separate fields when creating data array to hash
 const Separator = ':'
 
-//ErrInvalidEncoding - error to indicate invalid encoding
+// ErrInvalidEncoding - error to indicate invalid encoding
 var ErrInvalidEncoding = errors.New("invalid node encoding")
 
-//PathElements - all the bytes that can be used as path elements as ascii characters
+// PathElements - all the bytes that can be used as path elements as ascii characters
 var PathElements = []byte("0123456789abcdef")
 
 /*Node - a node interface */
@@ -42,19 +42,19 @@ type Node interface {
 	SetOriginTracker(ot OriginTrackerI)
 }
 
-//OriginTrackerNode - a node that implements origin tracking
+// OriginTrackerNode - a node that implements origin tracking
 type OriginTrackerNode struct {
-	OriginTracker OriginTrackerI `json:"o,omitempty"`
+	OriginTracker OriginTrackerI `json:"o,omitempty" msg:"o"`
 }
 
-//NewOriginTrackerNode - create a new origin tracker node
+// NewOriginTrackerNode - create a new origin tracker node
 func NewOriginTrackerNode() *OriginTrackerNode {
 	otn := &OriginTrackerNode{}
 	otn.OriginTracker = &OriginTracker{}
 	return otn
 }
 
-//Clone - clone the given origin tracker node
+// Clone - clone the given origin tracker node
 func (otn *OriginTrackerNode) Clone() *OriginTrackerNode {
 	clone := NewOriginTrackerNode()
 	clone.OriginTracker.SetOrigin(otn.GetOrigin())
@@ -62,53 +62,53 @@ func (otn *OriginTrackerNode) Clone() *OriginTrackerNode {
 	return clone
 }
 
-//SetOriginTracker - implement interface
+// SetOriginTracker - implement interface
 func (otn *OriginTrackerNode) SetOriginTracker(ot OriginTrackerI) {
 	otn.OriginTracker = ot
 }
 
-//SetOrigin - implement interface
+// SetOrigin - implement interface
 func (otn *OriginTrackerNode) SetOrigin(origin Sequence) {
 	otn.OriginTracker.SetOrigin(origin)
 }
 
-//GetOrigin - implement interface
+// GetOrigin - implement interface
 func (otn *OriginTrackerNode) GetOrigin() Sequence {
 	return otn.OriginTracker.GetOrigin()
 }
 
-//SetVersion - implement interface
+// SetVersion - implement interface
 func (otn *OriginTrackerNode) SetVersion(version Sequence) {
 	otn.OriginTracker.SetVersion(version)
 }
 
-//GetVersion - implement interface
+// GetVersion - implement interface
 func (otn *OriginTrackerNode) GetVersion() Sequence {
 	return otn.OriginTracker.GetVersion()
 }
 
-//Write - implement interface
+// Write - implement interface
 func (otn *OriginTrackerNode) Write(w io.Writer) error {
 	return otn.OriginTracker.Write(w)
 }
 
-//Read - implement interface
+// Read - implement interface
 func (otn *OriginTrackerNode) Read(r io.Reader) error {
 	return otn.OriginTracker.Read(r)
 }
 
-//GetOriginTracker - implement interface
+// GetOriginTracker - implement interface
 func (otn *OriginTrackerNode) GetOriginTracker() OriginTrackerI {
 	return otn.OriginTracker
 }
 
 /*ValueNode - any node that holds a value should implement this */
 type ValueNode struct {
-	Value              MPTSerializable `json:"v"`
-	*OriginTrackerNode `json:"o,omitempty"`
+	Value              MPTSerializable `json:"v" msg:"v"`
+	*OriginTrackerNode `json:"o,omitempty" msg:"o"`
 }
 
-//NewValueNode - create a new value node
+// NewValueNode - create a new value node
 func NewValueNode() *ValueNode {
 	vn := &ValueNode{}
 	vn.OriginTrackerNode = NewOriginTrackerNode()
@@ -171,7 +171,9 @@ func (vn *ValueNode) SetValue(value MPTSerializable) {
 
 /*Encode - overwrite interface method */
 func (vn *ValueNode) Encode() []byte {
-	buf := bytes.NewBuffer(nil)
+	//buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 
 	if err := writeNodePrefix(buf, vn); err != nil {
 		// TODO: the Encode() interface should return error
@@ -223,7 +225,9 @@ func (ln *LeafNode) GetHash() string {
 
 /*GetHashBytes - implement interface */
 func (ln *LeafNode) GetHashBytes() []byte {
-	buf := bytes.NewBuffer(nil)
+	//buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 	if err := binary.Write(buf, binary.LittleEndian, ln.GetOrigin()); err != nil {
 		// TODO: return error
 		logging.Logger.Error("leaf node GetHashBytes failed", zap.Error(err))
@@ -235,7 +239,8 @@ func (ln *LeafNode) GetHashBytes() []byte {
 
 /*Encode - implement interface */
 func (ln *LeafNode) Encode() []byte {
-	buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 	if err := writeNodePrefix(buf, ln); err != nil {
 		// TODO: return error
 		logging.Logger.Error("leaf node Encode failed", zap.Error(err))
@@ -334,9 +339,9 @@ func (ln *LeafNode) GetValueBytes() []byte {
 
 /*FullNode - a branch node that can contain 16 children and a value */
 type FullNode struct {
-	Children           [16][]byte `json:"c"`
-	Value              *ValueNode `json:"v,omitempty"` // This may not be needed as our path is fixed in size
-	*OriginTrackerNode `json:"o,omitempty"`
+	Children           [16][]byte `json:"c" msg:"c"`
+	Value              *ValueNode `json:"v,omitempty" msg:"v"` // This may not be needed as our path is fixed in size
+	*OriginTrackerNode `json:"o,omitempty" msg:"o"`
 }
 
 /*NewFullNode - create a new full node */
@@ -354,7 +359,9 @@ func (fn *FullNode) GetHash() string {
 
 /*GetHashBytes - implement interface */
 func (fn *FullNode) GetHashBytes() []byte {
-	buf := bytes.NewBuffer(nil)
+	//buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 	if err := binary.Write(buf, binary.LittleEndian, fn.GetOrigin()); err != nil {
 		// TODO: return error
 		logging.Logger.Error("full node GetHashBytes failed", zap.Error(err))
@@ -366,7 +373,9 @@ func (fn *FullNode) GetHashBytes() []byte {
 
 /*Encode - implement interface */
 func (fn *FullNode) Encode() []byte {
-	buf := bytes.NewBuffer(nil)
+	//buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 	if err := writeNodePrefix(buf, fn); err != nil {
 		logging.Logger.Error("full node encode failed", zap.Error(err))
 		return nil
@@ -514,9 +523,9 @@ func (fn *FullNode) SetValue(value MPTSerializable) {
 
 /*ExtensionNode - a multi-char length path along which there are no branches, at the end of this path there should be full node */
 type ExtensionNode struct {
-	Path               Path `json:"p"`
-	NodeKey            Key  `json:"k"`
-	*OriginTrackerNode `json:"o,omitempty"`
+	Path               Path `json:"p" msg:"p"`
+	NodeKey            Key  `json:"k" msg:"k"`
+	*OriginTrackerNode `json:"o,omitempty" msg:"o"`
 }
 
 /*NewExtensionNode - create a new extension node */
@@ -535,7 +544,9 @@ func (en *ExtensionNode) GetHash() string {
 
 /*GetHashBytes - implement interface */
 func (en *ExtensionNode) GetHashBytes() []byte {
-	buf := bytes.NewBuffer(nil)
+	//buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 	if err := binary.Write(buf, binary.LittleEndian, en.GetOrigin()); err != nil {
 		// TODO: return error
 		logging.Logger.Error("full node GetHashBytes failed", zap.Error(err))
@@ -547,7 +558,9 @@ func (en *ExtensionNode) GetHashBytes() []byte {
 
 /*Encode - implement interface */
 func (en *ExtensionNode) Encode() []byte {
-	buf := bytes.NewBuffer(nil)
+	//buf := bytes.NewBuffer(nil)
+	buf := acquireBuffer()
+	defer releaseBuffer(buf)
 	if err := writeNodePrefix(buf, en); err != nil {
 		logging.Logger.Error("extension node encode failed", zap.Error(err))
 		return nil
