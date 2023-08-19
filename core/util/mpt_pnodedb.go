@@ -68,6 +68,7 @@ func newDeadNodesCFOptions() *grocksdb.Options {
 	opts.SetKeepLogFileNum(5)
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
+	opts.SetCompression(PNodeDBCompression)
 	return opts
 }
 
@@ -75,6 +76,7 @@ func newDBOptions() *grocksdb.Options {
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetCreateIfMissingColumnFamilies(true)
+	opts.SetCompression(PNodeDBCompression)
 	return opts
 }
 
