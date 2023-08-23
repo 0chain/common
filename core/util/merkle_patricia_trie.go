@@ -357,6 +357,9 @@ func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, er
 func (mpt *MerklePatriciaTrie) insert(value MPTSerializable, key Key, prefix, path Path) (Node, Key, error) {
 	node, err := mpt.getNode(key)
 	if err != nil {
+		Logger.Error("insert get node failed",
+			zap.String("key", ToHex(key)),
+			zap.Error(err))
 		return nil, nil, err
 	}
 	if len(path) == 0 {
