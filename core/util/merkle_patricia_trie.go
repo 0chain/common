@@ -295,6 +295,17 @@ func (mpt *MerklePatriciaTrie) getNodeValue(path Path, node Node, v MPTSerializa
 	return err
 }
 
+func (mpt *MerklePatriciaTrie) GetAllMissingNodes() ([]string, error) {
+	mpt.mutex.RLock()
+	defer mpt.mutex.RUnlock()
+	var missingNodes []string
+	if err := mpt.pp2(mpt.root, 0, &missingNodes); err != nil {
+		return nil, err
+	}
+
+	return missingNodes, nil
+}
+
 func (mpt *MerklePatriciaTrie) getNodeValueRaw(path Path, node Node) ([]byte, error) {
 	switch nodeImpl := node.(type) {
 	case *LeafNode:
@@ -909,6 +920,29 @@ func (mpt *MerklePatriciaTrie) pp(w io.Writer, key Key, depth byte, initpad bool
 			mpt.indent(w, depth+1)
 			_, _ = w.Write([]byte(fmt.Sprintf("%.2d ", idx)))
 			_ = mpt.pp(w, cnode, depth+2, false)
+		}
+	}
+	return nil
+}
+
+func (mpt *MerklePatriciaTrie) pp2(key Key, depth byte, missingNodes *[]string) error {
+	node, err := mpt.getNode(key)
+	if err != nil {
+		if missingNodes != nil && err == ErrNodeNotFound {
+			*missingNodes = append(*missingNodes, ToHex(key))
+		}
+		return err
+	}
+	switch nodeImpl := node.(type) {
+	case *LeafNode:
+	case *ExtensionNode:
+		_ = mpt.pp2(nodeImpl.NodeKey, depth+2, missingNodes)
+	case *FullNode:
+		for _, cnode := range nodeImpl.Children {
+			if cnode == nil {
+				continue
+			}
+			_ = mpt.pp2(cnode, depth+2, missingNodes)
 		}
 	}
 	return nil

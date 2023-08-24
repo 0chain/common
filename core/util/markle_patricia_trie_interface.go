@@ -59,6 +59,7 @@ type MerklePatriciaTrieI interface {
 	GetMissingNodeKeys() []Key
 	// only for testing and debugging
 	PrettyPrint(w io.Writer) error
+	GetAllMissingNodes() ([]string, error)
 
 	Validate() error
 
