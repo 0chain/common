@@ -359,6 +359,8 @@ func (mpt *MerklePatriciaTrie) insert(value MPTSerializable, key Key, prefix, pa
 	if err != nil {
 		Logger.Error("insert get node failed",
 			zap.String("key", ToHex(key)),
+			zap.String("prefix", ToHex(prefix)),
+			zap.Any("prefix bytes", prefix),
 			zap.Error(err))
 		return nil, nil, err
 	}
