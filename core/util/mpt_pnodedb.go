@@ -181,6 +181,7 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 		count int64
 
 		keys        = make([]Key, 0, maxPruneNodes)
+		keysStr     = make([]string, 0, maxPruneNodes)
 		pruneRounds = make([]uint64, 0, 100)
 
 		deadNodesC = make(chan deadNodesRecord, 1)
@@ -248,12 +249,16 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 
 			pruneRounds = append(pruneRounds, dn.round)
 			keys = append(keys, dn.nodesKeys...)
+			for _, k := range dn.nodesKeys {
+				keysStr = append(keysStr, ToHex(k))
+			}
 			if len(keys) >= maxPruneNodes {
 				// delete nodes
 				if err := pndb.MultiDeleteNode(keys); err != nil {
 					return err
 				}
 
+				logging.Logger.Debug("prune state - delete nodes", zap.Strings("keys", keysStr))
 				keys = keys[:0]
 			}
 		}
