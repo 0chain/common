@@ -295,10 +295,10 @@ func (mpt *MerklePatriciaTrie) getNodeValue(path Path, node Node, v MPTSerializa
 	return err
 }
 
-func (mpt *MerklePatriciaTrie) GetAllMissingNodes() ([]string, error) {
+func (mpt *MerklePatriciaTrie) GetAllMissingNodes() ([]Key, error) {
 	mpt.mutex.RLock()
 	defer mpt.mutex.RUnlock()
-	var missingNodes []string
+	var missingNodes []Key
 	if err := mpt.pp2(mpt.root, 0, &missingNodes); err != nil {
 		return nil, err
 	}
@@ -925,11 +925,13 @@ func (mpt *MerklePatriciaTrie) pp(w io.Writer, key Key, depth byte, initpad bool
 	return nil
 }
 
-func (mpt *MerklePatriciaTrie) pp2(key Key, depth byte, missingNodes *[]string) error {
+func (mpt *MerklePatriciaTrie) pp2(key Key, depth byte, missingNodes *[]Key) error {
 	node, err := mpt.getNode(key)
 	if err != nil {
 		if missingNodes != nil && err == ErrNodeNotFound {
-			*missingNodes = append(*missingNodes, ToHex(key))
+			ckey := make([]byte, len(key))
+			copy(ckey, key)
+			*missingNodes = append(*missingNodes, ckey)
 		}
 		return err
 	}
