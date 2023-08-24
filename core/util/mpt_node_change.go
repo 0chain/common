@@ -137,17 +137,21 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	cc.mutex.RLock()
 	defer cc.mutex.RUnlock()
 	keys := make([]Key, len(cc.Changes))
+	keysStr := make([]string, len(keys))
 	nodes := make([]Node, len(cc.Changes))
 	idx := 0
 	for _, c := range cc.Changes {
 		nodes[idx] = c.New.Clone()
 		keys[idx] = nodes[idx].GetHashBytes()
+		keysStr[idx] = nodes[idx].GetHash()
 		idx++
 	}
 	err := ndb.MultiPutNode(keys, nodes)
 	if err != nil {
 		return err
 	}
+
+	logging.Logger.Debug("update changes - add nodes", zap.Strings("keys", keysStr))
 	if includeDeletes {
 		for _, d := range cc.Deletes {
 			err := ndb.DeleteNode(d.GetHashBytes())
