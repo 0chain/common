@@ -839,13 +839,13 @@ func (mpt *MerklePatriciaTrie) iterate(ctx context.Context, path Path, key Key, 
 }
 
 func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key, error) {
-	// if DebugMPTNode {
-	ohash := ""
-	if oldNode != nil {
-		ohash = oldNode.GetHash()
+	if DebugMPTNode {
+		ohash := ""
+		if oldNode != nil {
+			ohash = oldNode.GetHash()
+		}
+		Logger.Debug("insert node", zap.String("nn", newNode.GetHash()), zap.String("on", ohash))
 	}
-	Logger.Debug("insert node", zap.String("nn", newNode.GetHash()), zap.String("on", ohash))
-	// }
 
 	newNode.SetOrigin(mpt.Version)
 	ckey := newNode.GetHashBytes()
@@ -860,11 +860,7 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 		if !bytes.Equal(okey, ckey) { //delete previous node only if it isn`t the same as new one
 			mpt.ChangeCollector.AddChange(oldNode, newNode)
 			//NOTE: since leveldb is initiaized with propagate deletes as false, only newly created nodes will get deleted
-			Logger.Debug("insert node - delete old node", zap.String("key", ToHex(okey)))
 			if err := mpt.db.DeleteNode(okey); err != nil {
-				Logger.Error("insert node - delete old node failed",
-					zap.String("key", ToHex(okey)),
-					zap.Error(err))
 				return nil, nil, err
 			}
 		}
