@@ -44,6 +44,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
+	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
 	if sstType == SSTTypePlainTable {
 		opts.SetAllowMmapReads(true)
 		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
@@ -52,11 +53,14 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 		opts.OptimizeForPointLookup(64)
 		opts.SetAllowMmapReads(true)
 		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
+		opts.SetMaxBackgroundJobs(4)               // default was 2, double to 4
+		opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
+		opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
+		opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
 	}
 	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
 	opts.EnableStatistics()
-	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
 
 	return opts
 }
@@ -69,6 +73,11 @@ func newDeadNodesCFOptions() *grocksdb.Options {
 	opts.SetBlockBasedTableFactory(bbto)
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
+
+	opts.SetMaxBackgroundJobs(4)               // default was 2, double to 4
+	opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
+	opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
+	opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
 	return opts
 }
 

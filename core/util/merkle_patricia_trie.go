@@ -240,6 +240,7 @@ func (mpt *MerklePatriciaTrie) SaveChanges(ctx context.Context, ndb NodeDB, incl
 		if err != nil {
 			logging.Logger.Error("MPT save changes failed",
 				zap.Any("version", mpt.Version),
+				zap.Int("changes", len(cc.GetChanges())),
 				zap.Error(err))
 			errC <- err
 		}
@@ -249,10 +250,13 @@ func (mpt *MerklePatriciaTrie) SaveChanges(ctx context.Context, ndb NodeDB, incl
 	case <-ctx.Done():
 		Logger.Debug("MPT save changes timeout",
 			zap.Any("duration", time.Since(ts)),
+			zap.Int("changes", len(cc.GetChanges())),
 			zap.Error(ctx.Err()))
 		return ctx.Err()
 	case err := <-errC:
-		Logger.Debug("MPT save changes failed", zap.Error(err))
+		Logger.Debug("MPT save changes failed",
+			zap.Int("changes", len(cc.GetChanges())),
+			zap.Error(err))
 		return err
 	case <-doneC:
 	}
