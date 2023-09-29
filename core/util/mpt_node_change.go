@@ -137,11 +137,13 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	cc.mutex.RLock()
 	defer cc.mutex.RUnlock()
 	keys := make([]Key, len(cc.Changes))
+	keysStr := make([]string, len(keys))
 	nodes := make([]Node, len(cc.Changes))
 	idx := 0
 	for _, c := range cc.Changes {
 		nodes[idx] = c.New.Clone()
 		keys[idx] = nodes[idx].GetHashBytes()
+		keysStr[idx] = nodes[idx].GetHash()
 		idx++
 	}
 
