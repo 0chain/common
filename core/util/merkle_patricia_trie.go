@@ -835,6 +835,10 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 		Logger.Info("insert node", zap.String("nn", newNode.GetHash()), zap.String("on", ohash))
 	}
 
+	if oldNode == nil {
+		logging.Logger.Debug("MPT - insert new node")
+	}
+
 	newNode.SetOrigin(mpt.Version)
 	ckey := newNode.GetHashBytes()
 	if err := mpt.db.PutNode(ckey, newNode); err != nil {
