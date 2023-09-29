@@ -46,7 +46,7 @@ type NodeDBIteratorHandler func(ctx context.Context, key Key, node Node) error
 /*NodeDB - an interface that gets, puts and deletes nodes by their key */
 type NodeDB interface {
 	GetNode(key Key) (Node, error)
-	PutNode(key Key, node Node) error
+	PutNode(key Key, node Node, isNew ...bool) error
 	DeleteNode(key Key) error
 	Iterate(ctx context.Context, handler NodeDBIteratorHandler) error
 	Size(ctx context.Context) int64
@@ -92,7 +92,7 @@ func (mndb *MemoryNodeDB) getNode(key Key) (Node, error) {
 }
 
 // unsafe
-func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
+func (mndb *MemoryNodeDB) putNode(key Key, node Node, isNew ...bool) error {
 	nd := node.Clone()
 	if DebugMPTNode {
 		if !bytes.Equal(key, nd.GetHashBytes()) {
@@ -100,6 +100,10 @@ func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
 				zap.String("key", ToHex(key)),
 				zap.String("node", ToHex(nd.GetHashBytes())))
 		}
+	}
+
+	if len(isNew) > 0 && isNew[0] {
+		logging.Logger.Debug("MPT - insert new node in memory")
 	}
 
 	mndb.Nodes[StrKey(key)] = nd
@@ -136,10 +140,10 @@ func (mndb *MemoryNodeDB) GetNode(key Key) (Node, error) {
 }
 
 /*PutNode - implement interface */
-func (mndb *MemoryNodeDB) PutNode(key Key, node Node) error {
+func (mndb *MemoryNodeDB) PutNode(key Key, node Node, isNew ...bool) error {
 	mndb.mutex.Lock()
 	defer mndb.mutex.Unlock()
-	return mndb.putNode(key, node)
+	return mndb.putNode(key, node, isNew...)
 }
 
 /*DeleteNode - implement interface */
@@ -419,7 +423,7 @@ func (lndb *LevelNodeDB) getNode(key Key) (Node, error) {
 }
 
 // unsafe
-func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
+func (lndb *LevelNodeDB) putNode(key Key, node Node, isNew ...bool) error {
 	nd := node.Clone()
 	if DebugMPTNode {
 		if !bytes.Equal(key, nd.GetHashBytes()) {
@@ -428,7 +432,7 @@ func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
 				zap.String("node_key", ToHex(nd.GetHashBytes())))
 		}
 	}
-	return lndb.current.PutNode(key, node)
+	return lndb.current.PutNode(key, node, isNew...)
 }
 
 // unsafe
@@ -454,10 +458,10 @@ func (lndb *LevelNodeDB) GetNode(key Key) (Node, error) {
 }
 
 /*PutNode - implement interface */
-func (lndb *LevelNodeDB) PutNode(key Key, node Node) error {
+func (lndb *LevelNodeDB) PutNode(key Key, node Node, isNew ...bool) error {
 	lndb.mutex.Lock()
 	defer lndb.mutex.Unlock()
-	return lndb.putNode(key, node)
+	return lndb.putNode(key, node, isNew...)
 }
 
 /*DeleteNode - implement interface */

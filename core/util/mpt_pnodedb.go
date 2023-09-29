@@ -134,13 +134,17 @@ func (pndb *PNodeDB) GetNode(key Key) (Node, error) {
 }
 
 /*PutNode - implement interface */
-func (pndb *PNodeDB) PutNode(key Key, node Node) error {
+func (pndb *PNodeDB) PutNode(key Key, node Node, isNew ...bool) error {
 	nd := node.Clone()
 	data := nd.Encode()
 	if !bytes.Equal(key, nd.GetHashBytes()) {
 		logging.Logger.Error("put node key not match",
 			zap.String("key", ToHex(key)),
 			zap.String("node", ToHex(nd.GetHashBytes())))
+	}
+
+	if len(isNew) > 0 && isNew[0] {
+		logging.Logger.Debug("MPT - insert new node to pnode", zap.Int("size", len(data)))
 	}
 
 	err := pndb.db.Put(pndb.wo, key, data)

@@ -851,13 +851,10 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 		Logger.Debug("insert node", zap.String("nn", newNode.GetHash()), zap.String("on", ohash))
 	}
 
-	if oldNode == nil {
-		logging.Logger.Debug("MPT - insert new node")
-	}
-
 	newNode.SetOrigin(mpt.Version)
 	ckey := newNode.GetHashBytes()
-	if err := mpt.db.PutNode(ckey, newNode); err != nil {
+	isNew := oldNode == nil
+	if err := mpt.db.PutNode(ckey, newNode, isNew); err != nil {
 		return nil, nil, err
 	}
 	//If same node is inserted by client, don't add them into change collector
