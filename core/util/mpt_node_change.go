@@ -137,11 +137,13 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	cc.mutex.RLock()
 	defer cc.mutex.RUnlock()
 	keys := make([]Key, len(cc.Changes))
+	keysStr := make([]string, len(keys))
 	nodes := make([]Node, len(cc.Changes))
 	idx := 0
 	for _, c := range cc.Changes {
 		nodes[idx] = c.New.Clone()
 		keys[idx] = nodes[idx].GetHashBytes()
+		keysStr[idx] = nodes[idx].GetHash()
 		idx++
 	}
 
@@ -150,6 +152,7 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	if err != nil {
 		return err
 	}
+
 	logging.Logger.Debug("MPT - update changes done", zap.Int("changes", len(keys)))
 	if includeDeletes {
 		for _, d := range cc.Deletes {
