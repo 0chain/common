@@ -146,12 +146,14 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 		keysStr[idx] = nodes[idx].GetHash()
 		idx++
 	}
+
+	logging.Logger.Debug("MPT - update changes", zap.Int("changes", len(keys)))
 	err := ndb.MultiPutNode(keys, nodes)
 	if err != nil {
 		return err
 	}
 
-	logging.Logger.Debug("update changes - add nodes", zap.Strings("keys", keysStr))
+	logging.Logger.Debug("MPT - update changes done", zap.Int("changes", len(keys)))
 	if includeDeletes {
 		for _, d := range cc.Deletes {
 			err := ndb.DeleteNode(d.GetHashBytes())
