@@ -61,6 +61,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
 	opts.EnableStatistics()
+	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(3 * time.Minute.Microseconds()))
 
 	return opts
 }
@@ -78,6 +79,7 @@ func newDeadNodesCFOptions() *grocksdb.Options {
 	opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
 	opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
 	opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
+	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(3 * time.Minute.Microseconds()))
 	return opts
 }
 
