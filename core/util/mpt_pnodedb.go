@@ -241,6 +241,14 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 		select {
 		case dn, ok := <-deadNodesC:
 			if !ok {
+				if len(keys) > 0 {
+					if err := pndb.MultiDeleteNode(keys); err != nil {
+						return err
+					}
+
+					keys = keys[:0]
+				}
+
 				if err := pndb.multiDeleteDeadNodes(pruneRounds); err != nil {
 					return err
 				}
