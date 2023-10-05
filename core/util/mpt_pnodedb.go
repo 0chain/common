@@ -102,7 +102,8 @@ func NewPNodeDB(stateDir, logDir string) (*PNodeDB, error) {
 		cfsOpts = []*grocksdb.Options{defaultCFOpts, deadNodesOpts}
 	)
 
-	db, cfhs, err := grocksdb.OpenDbColumnFamilies(newDBOptions(), stateDir, cfs, cfsOpts)
+	// db, cfhs, err := grocksdb.OpenDbColumnFamilies(newDBOptions(), stateDir, cfs, cfsOpts)
+	db, cfhs, err := grocksdb.OpenDbColumnFamilies(defaultCFOpts, stateDir, cfs, cfsOpts)
 	if err != nil {
 		return nil, err
 	}
