@@ -752,14 +752,14 @@ func (mpt *MerklePatriciaTrie) deleteAfterPathTraversal(node Node) (Node, Key, e
 		// The value of the branch needs to be updated
 		nnode := nodeImpl.Clone().(*FullNode)
 		nnode.SetValue(nil)
-		if nodeImpl.HasValue() {
-			mpt.ChangeCollector.DeleteChange(nodeImpl.Value)
-		}
+		// if nodeImpl.HasValue() {
+		// 	mpt.ChangeCollector.DeleteChange(nodeImpl.Value)
+		// }
 		return mpt.insertNode(node, nnode)
 	case *LeafNode:
-		if nodeImpl.HasValue() {
-			mpt.ChangeCollector.DeleteChange(nodeImpl.Value)
-		}
+		// if nodeImpl.HasValue() {
+		// 	mpt.ChangeCollector.DeleteChange(nodeImpl.Value)
+		// }
 		if err := mpt.deleteNode(node); err != nil {
 			return nil, nil, err
 		}
