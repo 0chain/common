@@ -44,6 +44,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
+	opts.SetCreateIfMissingColumnFamilies(true)
 	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
 	if sstType == SSTTypePlainTable {
 		opts.SetAllowMmapReads(true)
@@ -102,7 +103,6 @@ func NewPNodeDB(stateDir, logDir string) (*PNodeDB, error) {
 		cfsOpts = []*grocksdb.Options{defaultCFOpts, deadNodesOpts}
 	)
 
-	// db, cfhs, err := grocksdb.OpenDbColumnFamilies(newDBOptions(), stateDir, cfs, cfsOpts)
 	db, cfhs, err := grocksdb.OpenDbColumnFamilies(defaultCFOpts, stateDir, cfs, cfsOpts)
 	if err != nil {
 		return nil, err
