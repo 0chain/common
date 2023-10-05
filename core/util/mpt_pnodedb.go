@@ -225,7 +225,6 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 					return true // continue
 				}
 				ns = append(ns, kk)
-				count++
 			}
 
 			deadNodesC <- deadNodesRecord{
@@ -246,6 +245,7 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 						return err
 					}
 
+					count += int64(len(keys))
 					keys = keys[:0]
 				}
 
@@ -271,6 +271,7 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 					return err
 				}
 
+				count += int64(len(keys))
 				keys = keys[:0]
 			}
 		}
