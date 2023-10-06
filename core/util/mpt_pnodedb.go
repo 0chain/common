@@ -122,6 +122,13 @@ func NewPNodeDB(stateDir, logDir string) (*PNodeDB, error) {
 	}, nil
 }
 
+func (pndb *PNodeDB) EstimateSize() (string, string, string) {
+	a := pndb.db.GetProperty("rocksdb.estimate-num-keys")
+	def := pndb.db.GetPropertyCF("rocksdb.estimate-num-keys", pndb.defaultCFH)
+	dd := pndb.db.GetPropertyCF("rocksdb.estimate-num-keys", pndb.deadNodesCFH)
+	return a, def, dd
+}
+
 /*GetNode - implement interface */
 func (pndb *PNodeDB) GetNode(key Key) (Node, error) {
 	data, err := pndb.db.Get(pndb.ro, key)
