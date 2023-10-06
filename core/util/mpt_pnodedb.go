@@ -392,18 +392,12 @@ func (pndb *PNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 
 /*MultiDeleteNode - implement interface */
 func (pndb *PNodeDB) MultiDeleteNode(keys []Key) error {
-	// wb := grocksdb.NewWriteBatch()
-	// defer wb.Destroy()
-	// for _, key := range keys {
-	// 	wb.Delete(key)
-	// }
-	for _, k := range keys {
-		if err := pndb.DeleteNode(k); err != nil {
-			return err
-		}
+	wb := grocksdb.NewWriteBatch()
+	defer wb.Destroy()
+	for _, key := range keys {
+		wb.Delete(key)
 	}
-	// return pndb.db.Write(pndb.wo, wb)
-	return nil
+	return pndb.db.Write(pndb.wo, wb)
 }
 
 /*Iterate - implement interface */
