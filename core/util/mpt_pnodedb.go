@@ -44,6 +44,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts := grocksdb.NewDefaultOptions()
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
+	opts.SetCreateIfMissingColumnFamilies(true)
 	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
 	if sstType == SSTTypePlainTable {
 		opts.SetAllowMmapReads(true)
@@ -61,6 +62,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
 	opts.EnableStatistics()
+	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
 
 	return opts
 }
@@ -78,6 +80,7 @@ func newDeadNodesCFOptions() *grocksdb.Options {
 	opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
 	opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
 	opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
+	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
 	return opts
 }
 
@@ -100,7 +103,7 @@ func NewPNodeDB(stateDir, logDir string) (*PNodeDB, error) {
 		cfsOpts = []*grocksdb.Options{defaultCFOpts, deadNodesOpts}
 	)
 
-	db, cfhs, err := grocksdb.OpenDbColumnFamilies(newDBOptions(), stateDir, cfs, cfsOpts)
+	db, cfhs, err := grocksdb.OpenDbColumnFamilies(defaultCFOpts, stateDir, cfs, cfsOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +120,12 @@ func NewPNodeDB(stateDir, logDir string) (*PNodeDB, error) {
 		to:           grocksdb.NewDefaultTransactionOptions(),
 		fo:           grocksdb.NewDefaultFlushOptions(),
 	}, nil
+}
+
+func (pndb *PNodeDB) EstimateSize() (string, string) {
+	def := pndb.db.GetPropertyCF("rocksdb.estimate-num-keys", pndb.defaultCFH)
+	dd := pndb.db.GetPropertyCF("rocksdb.estimate-num-keys", pndb.deadNodesCFH)
+	return def, dd
 }
 
 /*GetNode - implement interface */
@@ -225,7 +234,6 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 					return true // continue
 				}
 				ns = append(ns, kk)
-				count++
 			}
 
 			deadNodesC <- deadNodesRecord{
@@ -241,6 +249,15 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 		select {
 		case dn, ok := <-deadNodesC:
 			if !ok {
+				if len(keys) > 0 {
+					if err := pndb.MultiDeleteNode(keys); err != nil {
+						return err
+					}
+
+					count += int64(len(keys))
+					keys = keys[:0]
+				}
+
 				if err := pndb.multiDeleteDeadNodes(pruneRounds); err != nil {
 					return err
 				}
@@ -263,6 +280,7 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 					return err
 				}
 
+				count += int64(len(keys))
 				keys = keys[:0]
 			}
 		}
