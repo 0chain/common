@@ -146,7 +146,7 @@ func (pndb *PNodeDB) GetNode(key Key) (Node, error) {
 func (pndb *PNodeDB) PutNode(key Key, node Node) error {
 	nd := node.Clone()
 	data := nd.Encode()
-	if !bytes.Equal(key, nd.GetHashBytes()) {
+	if DebugMPTNode && !bytes.Equal(key, nd.GetHashBytes()) {
 		logging.Logger.Error("put node key not match",
 			zap.String("key", ToHex(key)),
 			zap.String("node", ToHex(nd.GetHashBytes())))
