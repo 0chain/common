@@ -22,6 +22,11 @@ func NewTransactionCache(main BlockCacher) *TransactionCache {
 	}
 }
 
+func NewEmptyTransactionCache(sc *StateCache) *TransactionCache {
+	_, tc := NewBlockTxnCaches(sc, Block{})
+	return tc
+}
+
 func (tc *TransactionCache) Set(key string, e Value) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
