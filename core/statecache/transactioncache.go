@@ -22,8 +22,9 @@ func NewTransactionCache(main BlockCacher) *TransactionCache {
 	}
 }
 
-func NewEmptyTransactionCache(sc *StateCache) *TransactionCache {
-	_, tc := NewBlockTxnCaches(sc, Block{})
+// NewEmpty creates a new empty transaction cache
+func NewEmpty() *TransactionCache {
+	_, tc := NewBlockTxnCaches(NewStateCache(), Block{})
 	return tc
 }
 
