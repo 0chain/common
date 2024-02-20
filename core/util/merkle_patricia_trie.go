@@ -51,6 +51,10 @@ func CloneMPT(mpt MerklePatriciaTrieI) *MerklePatriciaTrie {
 	return clone
 }
 
+func (mpt *MerklePatriciaTrie) Cache() *statecache.TransactionCache {
+	return mpt.cache
+}
+
 func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
 	v, ok := mpt.cache.Get(string(key))
 	if ok {
