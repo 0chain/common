@@ -23,6 +23,7 @@ import (
 
 	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/logging"
+	"github.com/0chain/common/core/statecache"
 )
 
 func init() {
@@ -87,9 +88,12 @@ func TestMerkleTreeSaveToDB(t *testing.T) {
 	pndb, cleanup := newPNodeDB(t)
 	defer cleanup()
 
-	mpt := NewMerklePatriciaTrie(pndb, Sequence(2016), nil)
+	sc := statecache.NewStateCache()
+	_, txnCache := statecache.NewBlockTxnCaches(sc, statecache.Block{})
+
+	mpt := NewMerklePatriciaTrie(pndb, Sequence(2016), nil, txnCache)
 	db := NewLevelNodeDB(NewMemoryNodeDB(), mpt.db, false)
-	mpt2 := NewMerklePatriciaTrie(db, Sequence(2016), mpt.GetRoot())
+	mpt2 := NewMerklePatriciaTrie(db, Sequence(2016), mpt.GetRoot(), txnCache)
 
 	doStateValInsert(t, mpt2, "123456", 100)
 	doStateValInsert(t, mpt2, "123457", 1000)
@@ -114,7 +118,7 @@ func TestMerkleTreeSaveToDB(t *testing.T) {
 			iteratedHash, exp)
 	}
 
-	mpt3 := NewMerklePatriciaTrie(pndb, Sequence(2016), mpt2.GetRoot())
+	mpt3 := NewMerklePatriciaTrie(pndb, Sequence(2016), mpt2.GetRoot(), txnCache)
 
 	sponge = sha3.New256()
 	err = mpt3.Iterate(context.TODO(), iterSpongeHandler(sponge),

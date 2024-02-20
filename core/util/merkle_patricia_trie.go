@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0chain/common/core/common"
+	"github.com/0chain/common/core/statecache"
 
 	"github.com/0chain/common/core/logging"
 	. "github.com/0chain/common/core/logging"
@@ -26,13 +27,15 @@ type MerklePatriciaTrie struct {
 	ChangeCollector ChangeCollectorI
 	Version         Sequence
 	missingNodeKeys []Key
+	cache           *statecache.TransactionCache
 }
 
 /*NewMerklePatriciaTrie - create a new patricia merkle trie */
-func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key) *MerklePatriciaTrie {
+func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key, cache *statecache.TransactionCache) *MerklePatriciaTrie {
 	mpt := &MerklePatriciaTrie{
 		mutex: &sync.RWMutex{},
 		db:    db,
+		cache: cache,
 	}
 	mpt.root = root
 	mpt.ChangeCollector = NewChangeCollector(root)
@@ -42,11 +45,19 @@ func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key) *MerklePatrici
 
 // CloneMPT - clone an existing MPT so it can go off of a different root
 func CloneMPT(mpt MerklePatriciaTrieI) *MerklePatriciaTrie {
-	clone := NewMerklePatriciaTrie(mpt.GetNodeDB(), mpt.GetVersion(), mpt.GetRoot())
+	sc := statecache.NewStateCache()
+	_, txnCache := statecache.NewBlockTxnCaches(sc, statecache.Block{})
+	clone := NewMerklePatriciaTrie(mpt.GetNodeDB(), mpt.GetVersion(), mpt.GetRoot(), txnCache)
 	return clone
 }
 
 func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
+	v, ok := mpt.cache.Get(string(key))
+	if ok {
+		n = v.(Node)
+		return
+	}
+
 	n, err = mpt.db.GetNode(key)
 	if err == ErrNodeNotFound {
 		mpt.addMissingNodeKeys(key)
@@ -856,6 +867,9 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 	if err := mpt.db.PutNode(ckey, newNode); err != nil {
 		return nil, nil, err
 	}
+
+	mpt.cache.Set(string(ckey), newNode)
+
 	//If same node is inserted by client, don't add them into change collector
 	if oldNode == nil {
 		mpt.ChangeCollector.AddChange(oldNode, newNode)
@@ -878,7 +892,9 @@ func (mpt *MerklePatriciaTrie) deleteNode(node Node) error {
 	}
 	//Logger.Debug("delete node", zap.Any("version", mpt.Version), zap.String("key", node.GetHash()))
 	mpt.ChangeCollector.DeleteChange(node)
-	return mpt.db.DeleteNode(node.GetHashBytes())
+	ckey := node.GetHashBytes()
+	mpt.cache.Remove(string(ckey))
+	return mpt.db.DeleteNode(ckey)
 }
 
 func (mpt *MerklePatriciaTrie) matchingPrefix(p1 Path, p2 Path) Path {

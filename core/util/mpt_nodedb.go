@@ -93,7 +93,7 @@ func (mndb *MemoryNodeDB) getNode(key Key) (Node, error) {
 
 // unsafe
 func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
-	nd := node.Clone()
+	nd := node.CloneNode()
 	if DebugMPTNode {
 		if !bytes.Equal(key, nd.GetHashBytes()) {
 			logging.Logger.Error("MPT - put node key not match",
@@ -420,7 +420,7 @@ func (lndb *LevelNodeDB) getNode(key Key) (Node, error) {
 
 // unsafe
 func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
-	nd := node.Clone()
+	nd := node.CloneNode()
 	if DebugMPTNode {
 		if !bytes.Equal(key, nd.GetHashBytes()) {
 			logging.Logger.Error("MPT - put node key not match, level node",
