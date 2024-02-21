@@ -2,9 +2,6 @@ package statecache
 
 import (
 	"sync"
-
-	"github.com/0chain/common/core/logging"
-	"go.uber.org/zap"
 )
 
 type TransactionCache struct {
@@ -32,7 +29,7 @@ func (tc *TransactionCache) Set(key string, e Value) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	logging.Logger.Debug("txn cache set", zap.String("key", key))
+	// logging.Logger.Debug("txn cache set", zap.String("key", key))
 	tc.cache[key] = valueNode{
 		data:  e.Clone(),
 		round: tc.round,
@@ -65,7 +62,7 @@ func (e *EmptyValue) CopyFrom(interface{}) bool {
 func (tc *TransactionCache) Remove(key string) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	logging.Logger.Debug("txn cache remove", zap.String("key", key))
+	// logging.Logger.Debug("txn cache remove", zap.String("key", key))
 
 	value, ok := tc.cache[key]
 	if ok {
