@@ -2,9 +2,6 @@ package statecache
 
 import (
 	"sync"
-
-	"github.com/0chain/common/core/logging"
-	"go.uber.org/zap"
 )
 
 type BlockCacher interface {
@@ -124,11 +121,11 @@ func (pcc *BlockCache) Commit() {
 			pcc.main.cache[key] = make(map[string]valueNode)
 		}
 		v.data = v.data.Clone()
-		logging.Logger.Debug("block cache commit",
-			zap.String("key", key),
-			zap.String("block", pcc.blockHash),
-			zap.Int64("round", v.round),
-			zap.Bool("deleted", v.deleted))
+		// logging.Logger.Debug("block cache commit",
+		// zap.String("key", key),
+		// zap.String("block", pcc.blockHash),
+		// zap.Int64("round", v.round),
+		// zap.Bool("deleted", v.deleted))
 		pcc.main.cache[key][pcc.blockHash] = v
 	}
 
