@@ -472,7 +472,7 @@ func (fn *FullNode) CloneNode() Node {
 }
 
 func (fn *FullNode) Clone() statecache.Value {
-	return fn.Clone()
+	return fn.CloneNode()
 }
 
 func (fn *FullNode) CopyFrom(v interface{}) bool {
