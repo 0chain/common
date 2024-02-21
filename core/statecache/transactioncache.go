@@ -45,7 +45,7 @@ func (tc *TransactionCache) Get(key string) (Value, bool) {
 
 	value, ok := tc.cache[key]
 	if ok {
-		logging.Logger.Debug("txn cache get", zap.String("key", key))
+		// logging.Logger.Debug("txn cache get", zap.String("key", key))
 		return value.data.Clone(), ok
 	}
 
@@ -88,14 +88,14 @@ func (tc *TransactionCache) Commit() {
 	var count int
 	for key, value := range tc.cache {
 		tc.main.setValue(key, value)
-		logging.Logger.Debug("transaction cache commit",
-			zap.String("key", key),
-			zap.Int64("round", value.round),
-			zap.Bool("deleted", value.deleted))
+		// logging.Logger.Debug("transaction cache commit",
+		// 	zap.String("key", key),
+		// 	zap.Int64("round", value.round),
+		// 	zap.Bool("deleted", value.deleted))
 		count++
 	}
 
-	logging.Logger.Debug("transaction cache commit - total", zap.Int("count", count))
+	// logging.Logger.Debug("transaction cache commit - total", zap.Int("count", count))
 
 	// Clear the transaction cache
 	tc.cache = make(map[string]valueNode)

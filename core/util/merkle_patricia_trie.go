@@ -66,6 +66,9 @@ func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
 	if err == ErrNodeNotFound {
 		mpt.addMissingNodeKeys(key)
 	}
+	if err == nil {
+		mpt.cache.Set(string(key), n)
+	}
 	return
 }
 

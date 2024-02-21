@@ -73,22 +73,22 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 
 	blockValues, ok := sc.cache[key]
 	if !ok {
-		logging.Logger.Debug("state cache get - not found", zap.String("key", key))
+		// logging.Logger.Debug("state cache get - not found", zap.String("key", key))
 		return nil, false
 	}
 
 	v, ok := blockValues[blockHash]
 	if !ok {
-		logging.Logger.Debug("state cache get - key found, value not found", zap.String("key", key))
+		// logging.Logger.Debug("state cache get - key found, value not found", zap.String("key", key))
 		return nil, false
 	}
 
 	if !v.deleted {
-		logging.Logger.Debug("state cache get", zap.String("key", key))
+		// logging.Logger.Debug("state cache get", zap.String("key", key))
 		return v.data.Clone(), true
 	}
 
-	logging.Logger.Debug("state cache get - deleted", zap.String("key", key))
+	// logging.Logger.Debug("state cache get - deleted", zap.String("key", key))
 	return nil, false
 }
 
