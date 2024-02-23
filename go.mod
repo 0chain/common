@@ -3,6 +3,7 @@ module github.com/0chain/common
 go 1.18
 
 require (
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/linxGnu/grocksdb v1.8.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cast v1.5.0

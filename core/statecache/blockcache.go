@@ -2,6 +2,8 @@ package statecache
 
 import (
 	"sync"
+
+	lru "github.com/hashicorp/golang-lru"
 )
 
 type BlockCacher interface {
@@ -113,23 +115,37 @@ func (pcc *BlockCache) Commit() {
 	pcc.mu.Lock()
 	defer pcc.mu.Unlock()
 
-	pcc.main.mu.Lock()
+	// pcc.main.mu.Lock()
+
 	pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
 
 	for key, v := range pcc.cache {
-		if _, ok := pcc.main.cache[key]; !ok {
-			pcc.main.cache[key] = make(map[string]valueNode)
+		bvsi, ok := pcc.main.cache.Get(key)
+		if !ok {
+			var err error
+			bvsi, err = lru.New(10 * 1024)
+			if err != nil {
+				panic(err)
+			}
 		}
-		v.data = v.data.Clone()
+
+		bvs := bvsi.(*lru.Cache)
+
+		if v.data != nil {
+			v.data = v.data.Clone()
+		}
+		bvs.Add(pcc.blockHash, v)
+
+		pcc.main.cache.Add(key, bvs)
+
 		// logging.Logger.Debug("block cache commit",
 		// zap.String("key", key),
 		// zap.String("block", pcc.blockHash),
 		// zap.Int64("round", v.round),
 		// zap.Bool("deleted", v.deleted))
-		pcc.main.cache[key][pcc.blockHash] = v
 	}
 
-	pcc.main.mu.Unlock()
+	// pcc.main.mu.Unlock()
 
 	// Clear the pre-commit cache
 	pcc.cache = make(map[string]valueNode)
