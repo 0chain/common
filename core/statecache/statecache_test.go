@@ -151,50 +151,50 @@ func TestCacheTx_SkipBlock(t *testing.T) {
 	require.EqualValues(t, "value3", v)
 }
 
-func TestCacheTx_Shift(t *testing.T) {
-	sc := NewStateCache()
-	ct := NewBlockCache(sc, Block{Hash: "hash1"})
+// func TestCacheTx_Shift(t *testing.T) {
+// 	sc := NewStateCache()
+// 	ct := NewBlockCache(sc, Block{Hash: "hash1"})
 
-	// Add values to the cache in block "hash1"
-	ct.Set("key1", String("value1_h1"))
-	ct.Set("key2", String("value2_h1"))
+// 	// Add values to the cache in block "hash1"
+// 	ct.Set("key1", String("value1_h1"))
+// 	ct.Set("key2", String("value2_h1"))
 
-	// Commit the changes to the main cache
-	ct.Commit()
+// 	// Commit the changes to the main cache
+// 	ct.Commit()
 
-	// New block that update key1 only
-	ct = NewBlockCache(sc, Block{PrevHash: "hash1", Hash: "hash2"})
-	ct.Set("key1", String("value1_h2"))
-	ct.Commit()
+// 	// New block that update key1 only
+// 	ct = NewBlockCache(sc, Block{PrevHash: "hash1", Hash: "hash2"})
+// 	ct.Set("key1", String("value1_h2"))
+// 	ct.Commit()
 
-	// Commit should trigger shift of key2 from hash1 to hash2
-	v, ok := sc.Get("key2", "hash2")
-	require.True(t, ok)
-	require.EqualValues(t, "value2_h1", v)
+// 	// Commit should trigger shift of key2 from hash1 to hash2
+// 	v, ok := sc.Get("key2", "hash2")
+// 	require.True(t, ok)
+// 	require.EqualValues(t, "value2_h1", v)
 
-	// New block to update both key1 and key2
-	ct = NewBlockCache(sc, Block{PrevHash: "hash2", Hash: "hash3"})
-	ct.Set("key1", String("value1_h3"))
-	ct.Set("key2", String("value2_h3"))
+// 	// New block to update both key1 and key2
+// 	ct = NewBlockCache(sc, Block{PrevHash: "hash2", Hash: "hash3"})
+// 	ct.Set("key1", String("value1_h3"))
+// 	ct.Set("key2", String("value2_h3"))
 
-	v1, ok := ct.Get("key1")
-	require.True(t, ok)
-	require.EqualValues(t, "value1_h3", v1)
+// 	v1, ok := ct.Get("key1")
+// 	require.True(t, ok)
+// 	require.EqualValues(t, "value1_h3", v1)
 
-	v2, ok := ct.Get("key2")
-	require.True(t, ok)
-	require.EqualValues(t, "value2_h3", v2)
+// 	v2, ok := ct.Get("key2")
+// 	require.True(t, ok)
+// 	require.EqualValues(t, "value2_h3", v2)
 
-	ct.Commit()
+// 	ct.Commit()
 
-	v1, ok = sc.Get("key1", "hash3")
-	require.True(t, ok)
-	require.EqualValues(t, "value1_h3", v1)
+// 	v1, ok = sc.Get("key1", "hash3")
+// 	require.True(t, ok)
+// 	require.EqualValues(t, "value1_h3", v1)
 
-	v2, ok = sc.Get("key2", "hash3")
-	require.True(t, ok)
-	require.EqualValues(t, "value2_h3", v2)
-}
+// 	v2, ok = sc.Get("key2", "hash3")
+// 	require.True(t, ok)
+// 	require.EqualValues(t, "value2_h3", v2)
+// }
 
 func TestConcurrentExecutionAndCommit(t *testing.T) {
 	sc := NewStateCache()

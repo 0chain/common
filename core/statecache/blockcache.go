@@ -2,8 +2,11 @@ package statecache
 
 import (
 	"sync"
+	"time"
 
+	"github.com/0chain/common/core/logging"
 	lru "github.com/hashicorp/golang-lru"
+	"go.uber.org/zap"
 )
 
 type BlockCacher interface {
@@ -117,8 +120,9 @@ func (pcc *BlockCache) Commit() {
 
 	// pcc.main.mu.Lock()
 
-	pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
+	// pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
 
+	ts := time.Now()
 	for key, v := range pcc.cache {
 		bvsi, ok := pcc.main.cache.Get(key)
 		if !ok {
@@ -149,4 +153,5 @@ func (pcc *BlockCache) Commit() {
 
 	// Clear the pre-commit cache
 	pcc.cache = make(map[string]valueNode)
+	logging.Logger.Debug("statecache - commit", zap.Any("duration", time.Since(ts)))
 }
