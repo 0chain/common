@@ -61,7 +61,7 @@ type StateCache struct {
 }
 
 func NewStateCache() *StateCache {
-	cache, err := lru.New(1024 * 1024)
+	cache, err := lru.New(100 * 1024)
 	if err != nil {
 		panic(err)
 	}

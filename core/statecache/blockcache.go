@@ -127,7 +127,7 @@ func (pcc *BlockCache) Commit() {
 		bvsi, ok := pcc.main.cache.Get(key)
 		if !ok {
 			var err error
-			bvsi, err = lru.New(10 * 1024)
+			bvsi, err = lru.New(1024)
 			if err != nil {
 				panic(err)
 			}
