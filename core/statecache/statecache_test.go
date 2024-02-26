@@ -2,7 +2,6 @@ package statecache
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
 	"testing"
 
@@ -71,6 +70,11 @@ func TestBlockCache(t *testing.T) {
 	v2, ok := sc.Get("key1", "hash2")
 	require.True(t, ok)
 	require.EqualValues(t, "data2", v2)
+
+	// get data that is updated in hash1, no changes in hash2
+	vv2, ok := sc.Get("key2", "hash2")
+	require.True(t, ok)
+	require.EqualValues(t, "value2", vv2)
 
 	// Get cache in prior block
 	v1, ok := sc.Get("key1", "hash1")
@@ -460,22 +464,66 @@ func TestEmptyBlockCache(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestStateCache_Shift(t *testing.T) {
+func TestBlockCacheGetFromPrevious(t *testing.T) {
 	sc := NewStateCache()
+	ct := NewBlockCache(sc, Block{Hash: "hash1"})
 
-	bc := NewBlockCache(sc, Block{Hash: "hash1"})
-	tc := NewTransactionCache(bc)
-	tc.Set("key1", String("value1"))
-	tc.Commit()
-	bc.Commit()
-
-	// Test shift method
-	for i := 2; i <= 11; i++ {
-		sc.shift("hash"+strconv.Itoa(i-1), "hash"+strconv.Itoa(i))
+	// Test Get method when cache is empty
+	_, ok := ct.Get("key1")
+	if ok {
+		t.Error("Expected false, got ", ok)
 	}
 
-	value, ok := sc.Get("key1", "hash11")
-	if !ok || value.(String) != "value1" {
-		t.Error("Expected value1, got ", value)
+	ct.Set("key0", String("value0"))
+	ct.Commit()
+
+	var lastBC *BlockCache
+	for i := 0; i <= 100; i++ {
+		bc := NewBlockCache(sc, Block{PrevHash: fmt.Sprintf("hash%d", i+1), Hash: fmt.Sprintf("hash%d", i+2)})
+		if i == 50 {
+			bc.Set("key1", String("value50"))
+		}
+
+		bc.Commit()
+		lastBC = bc
 	}
+
+	v, ok := lastBC.Get("key1")
+	require.True(t, ok)
+	require.EqualValues(t, "value50", v)
+
+	// should not find the value in 100 rounds before
+	_, ok = lastBC.Get("key0")
+	require.False(t, ok)
+}
+
+func TestBlockCacheGetGap(t *testing.T) {
+	sc := NewStateCache()
+	ct := NewBlockCache(sc, Block{Hash: "hash1"})
+	ct.Set("key1", String("value1"))
+	ct.Commit()
+
+	var lastBC *BlockCache
+	for i := 0; i < 100; i++ {
+		bc := NewBlockCache(sc, Block{PrevHash: fmt.Sprintf("hash%d", i+1), Hash: fmt.Sprintf("hash%d", i+2)})
+		if i == 50 {
+			// cause break
+			continue
+		}
+
+		if i == 80 {
+			bc.Set("key2", String("value80"))
+		}
+
+		bc.Commit()
+		lastBC = bc
+	}
+
+	// update before 50 rounds would not be found
+	_, ok := lastBC.Get("key1")
+	require.False(t, ok)
+
+	v, ok := lastBC.Get("key2")
+	require.True(t, ok)
+	require.EqualValues(t, "value80", v)
 }

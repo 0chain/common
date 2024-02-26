@@ -54,12 +54,13 @@ func NewBlockCache(main *StateCache, b Block) *BlockCache {
 // Set sets the value with the given key in the pre-commit cache
 func (pcc *BlockCache) Set(key string, e Value) {
 	pcc.mu.Lock()
-	defer pcc.mu.Unlock()
 
 	pcc.cache[key] = valueNode{
-		data:  e.Clone(),
-		round: pcc.round,
+		data:          e.Clone(),
+		round:         pcc.round,
+		prevBlockHash: pcc.prevBlockHash,
 	}
+	pcc.mu.Unlock()
 }
 
 func (pcc *BlockCache) Round() int64 {
@@ -71,6 +72,7 @@ func (pcc *BlockCache) setValue(key string, v valueNode) {
 	defer pcc.mu.Unlock()
 
 	v.data = v.data.Clone()
+	v.prevBlockHash = pcc.prevBlockHash
 	pcc.cache[key] = v
 }
 
@@ -121,13 +123,12 @@ func (pcc *BlockCache) Commit() {
 	// pcc.main.mu.Lock()
 
 	// pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
-
 	ts := time.Now()
 	for key, v := range pcc.cache {
 		bvsi, ok := pcc.main.cache.Get(key)
 		if !ok {
 			var err error
-			bvsi, err = lru.New(1024)
+			bvsi, err = lru.New(200)
 			if err != nil {
 				panic(err)
 			}
@@ -150,6 +151,7 @@ func (pcc *BlockCache) Commit() {
 	}
 
 	// pcc.main.mu.Unlock()
+	pcc.main.commitRound(pcc.round, pcc.prevBlockHash, pcc.blockHash)
 
 	// Clear the pre-commit cache
 	pcc.cache = make(map[string]valueNode)

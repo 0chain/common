@@ -677,24 +677,24 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(key Key, node Node, prefix, path Pat
 	case *LeafNode:
 		if bytes.Equal(path, nodeImpl.Path) {
 			// Keep the logs until we are 100 percent sure that the MPT bug is fixed
-			logging.Logger.Debug("MPT - delete leaf node, deleteAtNode, leaf node",
-				zap.String("prefix path", ToHex(prefix)),
-				zap.String("path", ToHex(path)),
-				zap.String("node path", ToHex(nodeImpl.Path)),
-				zap.String("key", ToHex(key)),
-				zap.String("nodeImpl key", nodeImpl.GetHash()),
-				zap.Int64("node version", int64(nodeImpl.GetVersion())))
+			// logging.Logger.Debug("MPT - delete leaf node, deleteAtNode, leaf node",
+			// 	zap.String("prefix path", ToHex(prefix)),
+			// 	zap.String("path", ToHex(path)),
+			// 	zap.String("node path", ToHex(nodeImpl.Path)),
+			// 	zap.String("key", ToHex(key)),
+			// 	zap.String("nodeImpl key", nodeImpl.GetHash()),
+			// 	zap.Int64("node version", int64(nodeImpl.GetVersion())))
 			return mpt.deleteAfterPathTraversal(node)
 		}
 
 		// Keep the logs until we are 100 percent sure that the MPT bug is fixed
-		logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match",
-			zap.String("prefix path", ToHex(prefix)),
-			zap.String("path", ToHex(path)),
-			zap.String("node path", ToHex(nodeImpl.Path)),
-			zap.String("key", ToHex(key)),
-			zap.String("nodeImpl key", nodeImpl.GetHash()),
-			zap.Int64("node version", int64(nodeImpl.GetVersion())))
+		// logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match",
+		// 	zap.String("prefix path", ToHex(prefix)),
+		// 	zap.String("path", ToHex(path)),
+		// 	zap.String("node path", ToHex(nodeImpl.Path)),
+		// 	zap.String("key", ToHex(key)),
+		// 	zap.String("nodeImpl key", nodeImpl.GetHash()),
+		// 	zap.Int64("node version", int64(nodeImpl.GetVersion())))
 		return nil, nil, ErrValueNotPresent // There is nothing to delete
 	case *ExtensionNode:
 		matchPrefix := mpt.matchingPrefix(path, nodeImpl.Path)

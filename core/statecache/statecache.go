@@ -1,11 +1,9 @@
 package statecache
 
 import (
-	"time"
+	"sync"
 
-	"github.com/0chain/common/core/logging"
 	lru "github.com/hashicorp/golang-lru"
-	"go.uber.org/zap"
 )
 
 // NewBlockTxnCaches creates a new block cache and a transaction cache for the given block
@@ -49,15 +47,19 @@ func Copyable(v interface{}) (Copyer, bool) {
 }
 
 type valueNode struct {
-	data    Value
-	deleted bool  // indicates the value was removed
-	round   int64 // round number when this value is updated
+	data          Value
+	deleted       bool   // indicates the value was removed
+	round         int64  // round number when this value is updated
+	prevBlockHash string // previous block hash
 }
 
 type StateCache struct {
-	// mu sync.RWMutex
+	mu              sync.RWMutex
+	lastBreakRound  int64
+	lastCommitRound int64
 	// cache map[string]map[string]valueNode
-	cache *lru.Cache
+	cache     *lru.Cache
+	hashCache *lru.Cache
 }
 
 func NewStateCache() *StateCache {
@@ -66,10 +68,26 @@ func NewStateCache() *StateCache {
 		panic(err)
 	}
 
+	hCache, err := lru.New(100)
+	if err != nil {
+		panic(err)
+	}
+
 	return &StateCache{
 		// cache: make(map[string]map[string]valueNode),
-		cache: cache,
+		cache:     cache,
+		hashCache: hCache,
 	}
+}
+
+func (sc *StateCache) commitRound(round int64, prevHash, blockHash string) {
+	sc.mu.Lock()
+	if sc.lastCommitRound+1 != round {
+		sc.lastBreakRound = round // any valueNode with Round < lastBreakRound is stale
+	}
+	sc.lastCommitRound = round
+	sc.mu.Unlock()
+	sc.hashCache.Add(blockHash, prevHash)
 }
 
 // Get returns the value with the given key and block hash
@@ -83,81 +101,115 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		return nil, false
 	}
 
-	vv, ok := blockValues.(*lru.Cache).Get(blockHash)
-	if !ok {
-		// logging.Logger.Debug("state cache get - key found, value not found", zap.String("key", key))
+	bvs := blockValues.(*lru.Cache)
+	vv, ok := bvs.Get(blockHash)
+	if ok {
+		v := vv.(valueNode)
+
+		if !v.deleted {
+			// logging.Logger.Debug("state cache get", zap.String("key", key))
+			return v.data.Clone(), true
+		}
+
 		return nil, false
 	}
 
-	v := vv.(valueNode)
+	var count int
+	for {
+		count++
+		// get previous block hash
+		prevHash, ok := sc.hashCache.Get(blockHash)
+		if !ok {
+			// could not find previous hash
+			return nil, false
+		}
 
-	if !v.deleted {
-		// logging.Logger.Debug("state cache get", zap.String("key", key))
+		blockHash = prevHash.(string)
+		vv, ok = bvs.Get(blockHash)
+		if !ok {
+			// break if the value is not found in previous 100 rounds
+			if count >= 100 {
+				return nil, false
+			}
+
+			continue
+		}
+
+		v := vv.(valueNode)
+		sc.mu.Lock()
+		if v.round < sc.lastBreakRound {
+			sc.mu.Unlock()
+			// break if value round is less than last break round
+			return nil, false
+		}
+		sc.mu.Unlock()
+
+		if v.deleted {
+			return nil, false
+		}
+
 		return v.data.Clone(), true
 	}
-
-	// logging.Logger.Debug("state cache get - deleted", zap.String("key", key))
-	return nil, false
 }
 
-func (sc *StateCache) getValue(key, blockHash string) (valueNode, bool) {
-	// sc.mu.RLock()
-	// defer sc.mu.RUnlock()
+// func (sc *StateCache) getValue(key, blockHash string) (valueNode, bool) {
+// 	// sc.mu.RLock()
+// 	// defer sc.mu.RUnlock()
 
-	blockValues, ok := sc.cache.Get(key)
-	if !ok {
-		return valueNode{}, false
-	}
+// 	blockValues, ok := sc.cache.Get(key)
+// 	if !ok {
+// 		return valueNode{}, false
+// 	}
 
-	vv, ok := blockValues.(*lru.Cache).Get(blockHash)
-	v := vv.(valueNode)
-	if ok && !v.deleted {
-		v.data = v.data.Clone()
-		return v, true
-	}
-	return valueNode{}, false
-}
+// 	vv, ok := blockValues.(*lru.Cache).Get(blockHash)
+// 	v := vv.(valueNode)
+// 	if ok && !v.deleted {
+// 		v.data = v.data.Clone()
+// 		return v, true
+// 	}
+// 	return valueNode{}, false
+// }
 
 // shift copy the value from previous block to current
-func (sc *StateCache) shift(prevHash, blockHash string) {
-	if prevHash == "" || blockHash == "" {
-		return
-	}
-	tm := time.Now()
+// func (sc *StateCache) shift(prevHash, blockHash string) {
+// 	if prevHash == "" || blockHash == "" {
+// 		return
+// 	}
+// 	tm := time.Now()
 
-	keys := sc.cache.Keys()
-	for _, key := range keys {
-		blockValues, ok := sc.cache.Get(key)
-		if ok {
-			bvs := blockValues.(*lru.Cache)
-			vv, ok := bvs.Get(prevHash)
-			if ok {
-				// shift the value from previous block when it does not exist in present block
-				if _, exist := bvs.Get(blockHash); !exist {
-					v := vv.(valueNode)
-					v.data = v.data.Clone()
-					bvs.Add(blockHash, v)
-					sc.cache.Add(key, bvs)
-				}
-			}
-		}
-	}
+// 	keys := sc.cache.Keys()
+// 	for _, key := range keys {
+// 		blockValues, ok := sc.cache.Get(key)
+// 		if ok {
+// 			bvs := blockValues.(*lru.Cache)
+// 			vv, ok := bvs.Get(prevHash)
+// 			if ok {
+// 				// shift the value from previous block when it does not exist in present block
+// 				if _, exist := bvs.Get(blockHash); !exist {
+// 					v := vv.(valueNode)
+// 					v.data = v.data.Clone()
+// 					bvs.Add(blockHash, v)
+// 					sc.cache.Add(key, bvs)
+// 				}
+// 			}
+// 		}
+// 	}
 
-	// for key, blockValues := range sc.cache {
-	// 	v, ok := blockValues[prevHash]
-	// 	if ok {
-	// 		if _, exists := blockValues[blockHash]; !exists {
-	// 			if sc.cache[key] == nil {
-	// 				sc.cache[key] = make(map[string]valueNode)
-	// 			}
-	// 			v.data = v.data.Clone()
-	// 			sc.cache[key][blockHash] = v
-	// 		}
-	// 	}
-	// }
+// for key, blockValues := range sc.cache {
+// 	v, ok := blockValues[prevHash]
+// 	if ok {
+// 		if _, exists := blockValues[blockHash]; !exists {
+// 			if sc.cache[key] == nil {
+// 				sc.cache[key] = make(map[string]valueNode)
+// 			}
+// 			v.data = v.data.Clone()
+// 			sc.cache[key][blockHash] = v
+// 		}
+// 	}
+// }
 
-	logging.Logger.Debug("state cache - shift", zap.Any("duration", time.Since(tm)))
-}
+// logging.Logger.Debug("state cache - shift", zap.Any("duration", time.Since(tm)))
+// }
 
 // Remove removes the values map with the given key
 func (sc *StateCache) Remove(key string) {
