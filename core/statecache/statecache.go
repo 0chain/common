@@ -82,10 +82,13 @@ func NewStateCache() *StateCache {
 
 func (sc *StateCache) commitRound(round int64, prevHash, blockHash string) {
 	sc.mu.Lock()
-	if sc.lastCommitRound+1 != round {
+	// update the lastCommitRound and lastBreakRound only when round is greater than lastCommitRound
+	// this is because the commitRound could happen for old rounds
+	if round > sc.lastCommitRound && sc.lastCommitRound+1 != round {
 		sc.lastBreakRound = round // any valueNode with Round < lastBreakRound is stale
+		sc.lastCommitRound = round
 	}
-	sc.lastCommitRound = round
+
 	sc.mu.Unlock()
 	sc.hashCache.Add(blockHash, prevHash)
 }
