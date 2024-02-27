@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0chain/common/core/statecache"
 	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/require"
 )
@@ -1224,7 +1225,7 @@ func TestMemoryNodeDB_Validate(t *testing.T) {
 			name: "TestMemoryNodeDB_Validate_ERR",
 			fields: func() fields {
 				mndb := NewMemoryNodeDB()
-				mpt := NewMerklePatriciaTrie(mndb, 1, nil)
+				mpt := NewMerklePatriciaTrie(mndb, 1, nil, statecache.NewEmpty())
 
 				n := &AState{balance: 2}
 				_, err := mpt.Insert(Path("astate_2"), n)
