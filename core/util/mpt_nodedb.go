@@ -206,14 +206,15 @@ func (mndb *MemoryNodeDB) Size(_ context.Context) int64 {
 
 /*PruneBelowVersion - implement interface */
 func (mndb *MemoryNodeDB) PruneBelowVersion(ctx context.Context, version int64) error {
-	mndb.mutex.Lock()
-	defer mndb.mutex.Unlock()
-	return mndb.iterate(ctx, func(ctx context.Context, key Key, node Node) error {
-		if int64(node.GetVersion()) < version {
-			return mndb.deleteNode(key)
-		}
-		return nil
-	})
+	// mndb.mutex.Lock()
+	// defer mndb.mutex.Unlock()
+	// return mndb.iterate(ctx, func(ctx context.Context, key Key, node Node) error {
+	// 	if int64(node.GetVersion()) < version {
+	// 		return mndb.deleteNode(key)
+	// 	}
+	// 	return nil
+	// })
+	return nil
 }
 
 func (mndb *MemoryNodeDB) RecordDeadNodes([]Node, int64) error {
