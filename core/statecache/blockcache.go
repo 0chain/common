@@ -117,6 +117,12 @@ func (pcc *BlockCache) remove(key string) {
 
 // Commit moves the values from the pre-commit cache to the main cache
 func (pcc *BlockCache) Commit() {
+	_, ok := pcc.main.hashCache.Get(pcc.blockHash)
+	if !ok {
+		// block already committed
+		return
+	}
+
 	pcc.mu.Lock()
 	defer pcc.mu.Unlock()
 
