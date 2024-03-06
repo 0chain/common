@@ -93,7 +93,7 @@ func (sc *StateCache) commit(bc *BlockCache) {
 	defer sc.lock.Unlock()
 
 	_, ok := sc.hashCache.Get(bc.blockHash)
-	if !ok {
+	if ok {
 		// block already committed
 		return
 	}
