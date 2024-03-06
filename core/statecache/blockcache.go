@@ -123,6 +123,10 @@ func (pcc *BlockCache) addStats(hit, miss int64) {
 	atomic.AddInt64(&pcc.miss, miss)
 }
 
+func (pcc *BlockCache) Stats() (hit, miss int64) {
+	return atomic.LoadInt64(&pcc.hits), atomic.LoadInt64(&pcc.miss)
+}
+
 // Commit moves the values from the pre-commit cache to the main cache
 func (pcc *BlockCache) Commit() {
 	pcc.main.commit(pcc)
