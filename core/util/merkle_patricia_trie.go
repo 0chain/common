@@ -899,6 +899,8 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 			if err := mpt.db.DeleteNode(okey); err != nil {
 				return nil, nil, err
 			}
+
+			mpt.cache.Remove(string(okey))
 		}
 	}
 	return newNode, ckey, nil
@@ -911,8 +913,12 @@ func (mpt *MerklePatriciaTrie) deleteNode(node Node) error {
 	//Logger.Debug("delete node", zap.Any("version", mpt.Version), zap.String("key", node.GetHash()))
 	mpt.ChangeCollector.DeleteChange(node)
 	ckey := node.GetHashBytes()
+	err := mpt.db.DeleteNode(ckey)
+	if err != nil {
+		return err
+	}
 	mpt.cache.Remove(string(ckey))
-	return mpt.db.DeleteNode(ckey)
+	return nil
 }
 
 func (mpt *MerklePatriciaTrie) matchingPrefix(p1 Path, p2 Path) Path {

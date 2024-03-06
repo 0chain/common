@@ -133,7 +133,7 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 
 	blockValues, ok := sc.cache.Get(key)
 	if !ok {
-		// logging.Logger.Debug("state cache get - not found", zap.String("key", key))
+		logging.Logger.Debug("state cache get - key not found", zap.String("key", key))
 		return nil, false
 	}
 
