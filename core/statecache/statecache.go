@@ -124,11 +124,17 @@ func (sc *StateCache) commit(bc *BlockCache) {
 	sc.commitRound(bc.round, bc.prevBlockHash, bc.blockHash)
 
 	sc.hits += bc.hits
-	sc.miss += bc.hits
+	sc.miss += bc.miss
 
 	// Clear the pre-commit cache
 	bc.cache = make(map[string]valueNode)
-	logging.Logger.Debug("statecache - commit", zap.String("block", bc.blockHash), zap.Any("duration", time.Since(ts)))
+	logging.Logger.Debug("statecache - commit",
+		zap.String("block", bc.blockHash),
+		zap.Int64("bc_hits", bc.hits),
+		zap.Int64("bc_miss", bc.miss),
+		zap.Int64("sc_hits", sc.hits),
+		zap.Int64("sc_miss", sc.miss),
+		zap.Any("duration", time.Since(ts)))
 }
 
 // Get returns the value with the given key and block hash
