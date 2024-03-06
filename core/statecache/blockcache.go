@@ -117,11 +117,11 @@ func (pcc *BlockCache) remove(key string) {
 
 // Commit moves the values from the pre-commit cache to the main cache
 func (pcc *BlockCache) Commit() {
-	_, ok := pcc.main.hashCache.Get(pcc.blockHash)
-	if !ok {
-		// block already committed
-		return
-	}
+	// _, ok := pcc.main.hashCache.Get(pcc.blockHash)
+	// if !ok {
+	// 	// block already committed
+	// 	return
+	// }
 
 	pcc.mu.Lock()
 	defer pcc.mu.Unlock()
@@ -161,5 +161,5 @@ func (pcc *BlockCache) Commit() {
 
 	// Clear the pre-commit cache
 	pcc.cache = make(map[string]valueNode)
-	logging.Logger.Debug("statecache - commit", zap.Any("duration", time.Since(ts)))
+	logging.Logger.Debug("statecache - commit", zap.String("block", pcc.blockHash), zap.Any("duration", time.Since(ts)))
 }
