@@ -2,6 +2,7 @@ package statecache
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/0chain/common/core/logging"
 	"go.uber.org/zap"
@@ -12,6 +13,7 @@ type BlockCacher interface {
 	Round() int64
 	Commit()
 	setValue(key string, v valueNode)
+	addStats(hit, miss int64)
 }
 
 // BlockCache is a pre commit cache for all changes in a block.
@@ -31,6 +33,8 @@ type BlockCache struct {
 	blockHash     string
 	prevBlockHash string
 	round         int64
+	hits          int64
+	miss          int64
 }
 
 type Block struct {
@@ -112,6 +116,11 @@ func (pcc *BlockCache) remove(key string) {
 			round:   pcc.round,
 		}
 	}
+}
+
+func (pcc *BlockCache) addStats(hit, miss int64) {
+	atomic.AddInt64(&pcc.hits, hit)
+	atomic.AddInt64(&pcc.miss, miss)
 }
 
 // Commit moves the values from the pre-commit cache to the main cache

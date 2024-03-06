@@ -2,6 +2,7 @@ package statecache
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type TransactionCache struct {
@@ -9,6 +10,8 @@ type TransactionCache struct {
 	cache map[string]valueNode
 	mu    sync.RWMutex
 	round int64
+	hit   int64
+	miss  int64
 }
 
 func NewTransactionCache(main BlockCacher) *TransactionCache {
@@ -82,18 +85,27 @@ func (tc *TransactionCache) Commit() {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	var count int
+	// var count int
 	for key, value := range tc.cache {
 		tc.main.setValue(key, value)
 		// logging.Logger.Debug("transaction cache commit",
 		// 	zap.String("key", key),
 		// 	zap.Int64("round", value.round),
 		// 	zap.Bool("deleted", value.deleted))
-		count++
+		// count++
 	}
 
 	// logging.Logger.Debug("transaction cache commit - total", zap.Int("count", count))
 
 	// Clear the transaction cache
+	tc.main.addStats(tc.hit, tc.miss)
 	tc.cache = make(map[string]valueNode)
+}
+
+func (tc *TransactionCache) AddHit() {
+	atomic.AddInt64(&tc.hit, 1)
+}
+
+func (tc *TransactionCache) AddMiss() {
+	atomic.AddInt64(&tc.miss, 1)
 }

@@ -31,3 +31,6 @@ func (qbc *QueryBlockCache) Commit() {
 func (*QueryBlockCache) setValue(key string, v valueNode) {
 	panic("setValue should not be called on QueryBlockCache")
 }
+
+func (*QueryBlockCache) addStats(hit, miss int64) {
+}

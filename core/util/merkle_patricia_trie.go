@@ -19,12 +19,12 @@ import (
 	"go.uber.org/zap"
 )
 
-var findCount int64
-var missedCount int64
+// var findCount int64
+// var missedCount int64
 
-func CacheStats() (find int64, missed int64) {
-	return atomic.LoadInt64(&findCount), atomic.LoadInt64(&missedCount)
-}
+// func CacheStats() (find int64, missed int64) {
+// 	return atomic.LoadInt64(&findCount), atomic.LoadInt64(&missedCount)
+// }
 
 /*MerklePatriciaTrie - it's a merkle tree and a patricia trie */
 type MerklePatriciaTrie struct {
@@ -65,7 +65,8 @@ func (mpt *MerklePatriciaTrie) Cache() *statecache.TransactionCache {
 func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
 	v, ok := mpt.cache.Get(string(key))
 	if ok {
-		atomic.AddInt64(&findCount, 1)
+		// atomic.AddInt64(&findCount, 1)
+		mpt.cache.AddHit()
 		// logging.Logger.Debug("MPT cache hit", zap.Int("find count", int(findCount)), zap.Int("missed count", int(missedCount)))
 		n = v.(Node)
 		return
@@ -76,7 +77,8 @@ func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
 		mpt.addMissingNodeKeys(key)
 	}
 	if err == nil {
-		atomic.AddInt64(&missedCount, 1)
+		// atomic.AddInt64(&missedCount, 1)
+		mpt.cache.AddMiss()
 		// logging.Logger.Debug("MPT cache missed", zap.Int("find count", int(findCount)), zap.Int("missed count", int(missedCount)))
 		mpt.cache.Set(string(key), n)
 	}

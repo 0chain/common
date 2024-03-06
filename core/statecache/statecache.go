@@ -61,6 +61,8 @@ type StateCache struct {
 	cache       *lru.Cache
 	hashCache   *lru.Cache
 	lock        sync.Mutex
+	hits        int64
+	miss        int64
 }
 
 func NewStateCache() *StateCache {
@@ -120,6 +122,9 @@ func (sc *StateCache) commit(bc *BlockCache) {
 	}
 
 	sc.commitRound(bc.round, bc.prevBlockHash, bc.blockHash)
+
+	bc.hits += bc.hits
+	bc.miss += bc.hits
 
 	// Clear the pre-commit cache
 	bc.cache = make(map[string]valueNode)
@@ -190,4 +195,11 @@ func (sc *StateCache) Remove(key string) {
 
 	sc.cache.Remove(key)
 	// delete(sc.cache, key)
+}
+
+func (sc *StateCache) Stats() (hits int64, miss int64) {
+	sc.lock.Lock()
+	hits, miss = sc.hits, sc.miss
+	sc.lock.Unlock()
+	return
 }
