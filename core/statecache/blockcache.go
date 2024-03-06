@@ -2,11 +2,6 @@ package statecache
 
 import (
 	"sync"
-	"time"
-
-	"github.com/0chain/common/core/logging"
-	lru "github.com/hashicorp/golang-lru"
-	"go.uber.org/zap"
 )
 
 type BlockCacher interface {
@@ -117,49 +112,51 @@ func (pcc *BlockCache) remove(key string) {
 
 // Commit moves the values from the pre-commit cache to the main cache
 func (pcc *BlockCache) Commit() {
+	pcc.main.commit(pcc)
+
 	// _, ok := pcc.main.hashCache.Get(pcc.blockHash)
 	// if !ok {
 	// 	// block already committed
 	// 	return
 	// }
 
-	pcc.mu.Lock()
-	defer pcc.mu.Unlock()
+	// pcc.mu.Lock()
+	// defer pcc.mu.Unlock()
 
-	// pcc.main.mu.Lock()
+	// // pcc.main.mu.Lock()
 
-	// pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
-	ts := time.Now()
-	for key, v := range pcc.cache {
-		bvsi, ok := pcc.main.cache.Get(key)
-		if !ok {
-			var err error
-			bvsi, err = lru.New(200)
-			if err != nil {
-				panic(err)
-			}
-		}
+	// // pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
+	// ts := time.Now()
+	// for key, v := range pcc.cache {
+	// 	bvsi, ok := pcc.main.cache.Get(key)
+	// 	if !ok {
+	// 		var err error
+	// 		bvsi, err = lru.New(200)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 	}
 
-		bvs := bvsi.(*lru.Cache)
+	// 	bvs := bvsi.(*lru.Cache)
 
-		if v.data != nil {
-			v.data = v.data.Clone()
-		}
-		bvs.Add(pcc.blockHash, v)
+	// 	if v.data != nil {
+	// 		v.data = v.data.Clone()
+	// 	}
+	// 	bvs.Add(pcc.blockHash, v)
 
-		pcc.main.cache.Add(key, bvs)
+	// 	pcc.main.cache.Add(key, bvs)
 
-		// logging.Logger.Debug("block cache commit",
-		// zap.String("key", key),
-		// zap.String("block", pcc.blockHash),
-		// zap.Int64("round", v.round),
-		// zap.Bool("deleted", v.deleted))
-	}
+	// 	// logging.Logger.Debug("block cache commit",
+	// 	// zap.String("key", key),
+	// 	// zap.String("block", pcc.blockHash),
+	// 	// zap.Int64("round", v.round),
+	// 	// zap.Bool("deleted", v.deleted))
+	// }
 
-	// pcc.main.mu.Unlock()
-	pcc.main.commitRound(pcc.round, pcc.prevBlockHash, pcc.blockHash)
+	// // pcc.main.mu.Unlock()
+	// pcc.main.commitRound(pcc.round, pcc.prevBlockHash, pcc.blockHash)
 
-	// Clear the pre-commit cache
-	pcc.cache = make(map[string]valueNode)
-	logging.Logger.Debug("statecache - commit", zap.String("block", pcc.blockHash), zap.Any("duration", time.Since(ts)))
+	// // Clear the pre-commit cache
+	// pcc.cache = make(map[string]valueNode)
+	// logging.Logger.Debug("statecache - commit", zap.String("block", pcc.blockHash), zap.Any("duration", time.Since(ts)))
 }

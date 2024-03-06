@@ -1,7 +1,12 @@
 package statecache
 
 import (
+	"sync"
+	"time"
+
+	"github.com/0chain/common/core/logging"
 	lru "github.com/hashicorp/golang-lru"
+	"go.uber.org/zap"
 )
 
 // NewBlockTxnCaches creates a new block cache and a transaction cache for the given block
@@ -55,6 +60,7 @@ type StateCache struct {
 	maxHisDepth int
 	cache       *lru.Cache
 	hashCache   *lru.Cache
+	lock        sync.Mutex
 }
 
 func NewStateCache() *StateCache {
@@ -78,6 +84,46 @@ func NewStateCache() *StateCache {
 
 func (sc *StateCache) commitRound(round int64, prevHash, blockHash string) {
 	sc.hashCache.Add(blockHash, prevHash)
+}
+
+func (sc *StateCache) commit(bc *BlockCache) {
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
+
+	_, ok := sc.hashCache.Get(bc.blockHash)
+	if !ok {
+		// block already committed
+		return
+	}
+
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	ts := time.Now()
+	for key, v := range bc.cache {
+		bvsi, ok := sc.cache.Get(key)
+		if !ok {
+			var err error
+			bvsi, err = lru.New(200)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		bvs := bvsi.(*lru.Cache)
+
+		if v.data != nil {
+			v.data = v.data.Clone()
+		}
+		bvs.Add(bc.blockHash, v)
+
+		sc.cache.Add(key, bvs)
+	}
+
+	sc.commitRound(bc.round, bc.prevBlockHash, bc.blockHash)
+
+	// Clear the pre-commit cache
+	bc.cache = make(map[string]valueNode)
+	logging.Logger.Debug("statecache - commit", zap.String("block", bc.blockHash), zap.Any("duration", time.Since(ts)))
 }
 
 // Get returns the value with the given key and block hash
