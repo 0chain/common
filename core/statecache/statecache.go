@@ -157,6 +157,7 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		prevHash, ok := sc.hashCache.Get(blockHash)
 		if !ok {
 			// could not find previous hash
+			logging.Logger.Debug("state cache - see gap", zap.String("block", blockHash))
 			return nil, false
 		}
 
@@ -165,6 +166,7 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		if !ok {
 			// stop if the value is not found in previous maxHisDepth rounds
 			if count >= sc.maxHisDepth {
+				logging.Logger.Debug("state cache - reach max depth", zap.String("block", blockHash))
 				return nil, false
 			}
 
@@ -173,6 +175,7 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 
 		v := vv.(valueNode)
 		if v.deleted {
+			logging.Logger.Debug("state cache - is deleted")
 			return nil, false
 		}
 
