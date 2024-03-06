@@ -109,3 +109,7 @@ func (tc *TransactionCache) AddHit() {
 func (tc *TransactionCache) AddMiss() {
 	atomic.AddInt64(&tc.miss, 1)
 }
+
+func (tc *TransactionCache) Stats() (hit, miss int64) {
+	return atomic.LoadInt64(&tc.hit), atomic.LoadInt64(&tc.miss)
+}
