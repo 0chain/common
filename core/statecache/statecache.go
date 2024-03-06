@@ -123,8 +123,8 @@ func (sc *StateCache) commit(bc *BlockCache) {
 
 	sc.commitRound(bc.round, bc.prevBlockHash, bc.blockHash)
 
-	bc.hits += bc.hits
-	bc.miss += bc.hits
+	sc.hits += bc.hits
+	sc.miss += bc.hits
 
 	// Clear the pre-commit cache
 	bc.cache = make(map[string]valueNode)
