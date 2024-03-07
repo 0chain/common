@@ -263,14 +263,17 @@ func TestAddRemoveAdd(t *testing.T) {
 	_, ok = sc.Get("key1", "hash2")
 	require.False(t, ok)
 
+	ct3 := NewBlockCache(sc, Block{PrevHash: "hash2", Hash: "hash3"})
 	// Add the value again to the CacheTx
-	ct2.Set("key1", String("value1"))
+	ct3.Set("key1", String("value1"))
+
+	// ct2.Set("key1", String("value1"))
 
 	// Commit the CacheTx
-	ct2.Commit()
+	ct3.Commit()
 
 	// Verify that the value is added back to the StateCache
-	v2, ok := sc.Get("key1", "hash2")
+	v2, ok := sc.Get("key1", "hash3")
 	require.True(t, ok)
 	require.EqualValues(t, "value1", v2)
 }

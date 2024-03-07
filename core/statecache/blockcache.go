@@ -127,6 +127,14 @@ func (pcc *BlockCache) Stats() (hit, miss int64) {
 	return atomic.LoadInt64(&pcc.hits), atomic.LoadInt64(&pcc.miss)
 }
 
+// SetBlockHash sets the block hash, which is used after miners generating the block.
+// miners generator does not know the block hash until the block is generated.
+func (pcc *BlockCache) SetBlockHash(hash string) {
+	pcc.mu.Lock()
+	pcc.blockHash = hash
+	pcc.mu.Unlock()
+}
+
 // Commit moves the values from the pre-commit cache to the main cache
 func (pcc *BlockCache) Commit() {
 	pcc.main.commit(pcc)
