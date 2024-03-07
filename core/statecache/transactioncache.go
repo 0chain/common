@@ -45,8 +45,11 @@ func (tc *TransactionCache) Get(key string) (Value, bool) {
 
 	value, ok := tc.cache[key]
 	if ok {
+		if value.deleted {
+			return nil, false
+		}
 		// logging.Logger.Debug("txn cache get", zap.String("key", key))
-		return value.data.Clone(), ok
+		return value.data.Clone(), true
 	}
 
 	return tc.main.Get(key)

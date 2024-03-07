@@ -344,6 +344,29 @@ func TestTransactionCache(t *testing.T) {
 	}
 }
 
+func TestTransactionCacheRemove(t *testing.T) {
+	sc := NewStateCache()
+	bc := NewBlockCache(sc, Block{Hash: "hash1"})
+
+	tc := NewTransactionCache(bc)
+	tc.Set("key1", String("value1"))
+
+	v, ok := tc.Get("key1")
+	require.True(t, ok)
+	require.EqualValues(t, "value1", v)
+
+	// remove
+	tc.Remove("key1")
+
+	_, ok = tc.Get("key1")
+	require.False(t, ok)
+
+	tc.Commit()
+
+	_, ok = bc.Get("key1")
+	require.False(t, ok)
+}
+
 // func TestStateCache_PruneRoundBelow(t *testing.T) {
 // 	sc := NewStateCache()
 
