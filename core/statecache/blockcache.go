@@ -19,11 +19,6 @@ type BlockCacher interface {
 // BlockCache is a pre commit cache for all changes in a block.
 // This is mainly for caching values in current block when executing blocks.
 //
-// Querying from this BlockCache will only return value from current block, and previous block if not found
-// in current block. That means if there are no changes happen in current block yet,
-// querying the value from current block hash will return nothing even the StateCache does has the value.
-// So please remember to use QueryBlockCache to get values from current block.
-//
 // Call `Commit()` method to merge
 // the changes to the StateCache when the block is executed.
 type BlockCache struct {
@@ -83,7 +78,7 @@ func (pcc *BlockCache) Get(key string) (Value, bool) {
 	pcc.mu.RLock()
 	defer pcc.mu.RUnlock()
 
-	// Check the pre-commit cache first
+	// Check the cache first
 	value, ok := pcc.cache[key]
 	if ok && !value.deleted {
 		// logging.Logger.Debug("block cache get", zap.String("key", key))
@@ -138,50 +133,4 @@ func (pcc *BlockCache) SetBlockHash(hash string) {
 // Commit moves the values from the pre-commit cache to the main cache
 func (pcc *BlockCache) Commit() {
 	pcc.main.commit(pcc)
-
-	// _, ok := pcc.main.hashCache.Get(pcc.blockHash)
-	// if !ok {
-	// 	// block already committed
-	// 	return
-	// }
-
-	// pcc.mu.Lock()
-	// defer pcc.mu.Unlock()
-
-	// // pcc.main.mu.Lock()
-
-	// // pcc.main.shift(pcc.prevBlockHash, pcc.blockHash)
-	// ts := time.Now()
-	// for key, v := range pcc.cache {
-	// 	bvsi, ok := pcc.main.cache.Get(key)
-	// 	if !ok {
-	// 		var err error
-	// 		bvsi, err = lru.New(200)
-	// 		if err != nil {
-	// 			panic(err)
-	// 		}
-	// 	}
-
-	// 	bvs := bvsi.(*lru.Cache)
-
-	// 	if v.data != nil {
-	// 		v.data = v.data.Clone()
-	// 	}
-	// 	bvs.Add(pcc.blockHash, v)
-
-	// 	pcc.main.cache.Add(key, bvs)
-
-	// 	// logging.Logger.Debug("block cache commit",
-	// 	// zap.String("key", key),
-	// 	// zap.String("block", pcc.blockHash),
-	// 	// zap.Int64("round", v.round),
-	// 	// zap.Bool("deleted", v.deleted))
-	// }
-
-	// // pcc.main.mu.Unlock()
-	// pcc.main.commitRound(pcc.round, pcc.prevBlockHash, pcc.blockHash)
-
-	// // Clear the pre-commit cache
-	// pcc.cache = make(map[string]valueNode)
-	// logging.Logger.Debug("statecache - commit", zap.String("block", pcc.blockHash), zap.Any("duration", time.Since(ts)))
 }

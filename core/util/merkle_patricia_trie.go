@@ -19,13 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// var findCount int64
-// var missedCount int64
-
-// func CacheStats() (find int64, missed int64) {
-// 	return atomic.LoadInt64(&findCount), atomic.LoadInt64(&missedCount)
-// }
-
 /*MerklePatriciaTrie - it's a merkle tree and a patricia trie */
 type MerklePatriciaTrie struct {
 	mutex           *sync.RWMutex
@@ -65,9 +58,7 @@ func (mpt *MerklePatriciaTrie) Cache() *statecache.TransactionCache {
 func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
 	v, ok := mpt.cache.Get(string(key))
 	if ok {
-		// atomic.AddInt64(&findCount, 1)
 		mpt.cache.AddHit()
-		// logging.Logger.Debug("MPT cache hit", zap.Int("find count", int(findCount)), zap.Int("missed count", int(missedCount)))
 		n = v.(Node)
 		return
 	}
@@ -77,9 +68,7 @@ func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
 		mpt.addMissingNodeKeys(key)
 	}
 	if err == nil {
-		// atomic.AddInt64(&missedCount, 1)
 		mpt.cache.AddMiss()
-		// logging.Logger.Debug("MPT cache missed", zap.Int("find count", int(findCount)), zap.Int("missed count", int(missedCount)))
 		mpt.cache.Set(string(key), n)
 	}
 	return
@@ -678,25 +667,9 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(key Key, node Node, prefix, path Pat
 		return mpt.insertNode(node, nnode)
 	case *LeafNode:
 		if bytes.Equal(path, nodeImpl.Path) {
-			// Keep the logs until we are 100 percent sure that the MPT bug is fixed
-			// logging.Logger.Debug("MPT - delete leaf node, deleteAtNode, leaf node",
-			// 	zap.String("prefix path", ToHex(prefix)),
-			// 	zap.String("path", ToHex(path)),
-			// 	zap.String("node path", ToHex(nodeImpl.Path)),
-			// 	zap.String("key", ToHex(key)),
-			// 	zap.String("nodeImpl key", nodeImpl.GetHash()),
-			// 	zap.Int64("node version", int64(nodeImpl.GetVersion())))
 			return mpt.deleteAfterPathTraversal(node)
 		}
 
-		// Keep the logs until we are 100 percent sure that the MPT bug is fixed
-		// logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match",
-		// 	zap.String("prefix path", ToHex(prefix)),
-		// 	zap.String("path", ToHex(path)),
-		// 	zap.String("node path", ToHex(nodeImpl.Path)),
-		// 	zap.String("key", ToHex(key)),
-		// 	zap.String("nodeImpl key", nodeImpl.GetHash()),
-		// 	zap.Int64("node version", int64(nodeImpl.GetVersion())))
 		return nil, nil, ErrValueNotPresent // There is nothing to delete
 	case *ExtensionNode:
 		matchPrefix := mpt.matchingPrefix(path, nodeImpl.Path)

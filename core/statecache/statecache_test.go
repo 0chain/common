@@ -367,68 +367,6 @@ func TestTransactionCacheRemove(t *testing.T) {
 	require.False(t, ok)
 }
 
-// func TestStateCache_PruneRoundBelow(t *testing.T) {
-// 	sc := NewStateCache()
-
-// 	// Add some values to the cache
-// 	value1 := valueNode{data: String("data1"), round: 1}
-// 	value2 := valueNode{data: String("data2"), round: 2}
-// 	value3 := valueNode{data: String("data3"), round: 3}
-// 	value4 := valueNode{data: String("data4"), round: 4}
-
-// 	bvs, _ := lru.New(10)
-// 	bvs.Add("hash1", value1)
-// 	bvs.Add("hash2", value2)
-// 	bvs.Add("hash3", value3)
-// 	bvs.Add("hash4", value4)
-
-// 	sc.cache.Add("key1", bvs)
-
-// 	// sc.cache["key1"] = map[string]valueNode{
-// 	// 	"hash1": value1,
-// 	// 	"hash2": value2,
-// 	// 	"hash3": value3,
-// 	// 	"hash4": value4,
-// 	// }
-
-// 	// sc.PrettyPrint()
-
-// 	// Prune values with round below 3
-// 	sc.PruneRoundBelow(3)
-
-// 	// Verify that values with round below 3 are pruned
-// 	_, ok := sc.cache["key1"]["hash1"]
-// 	require.False(t, ok)
-
-// 	_, ok = sc.cache["key1"]["hash2"]
-// 	require.False(t, ok)
-
-// 	_, ok = sc.cache["key1"]["hash3"]
-// 	require.True(t, ok)
-
-// 	_, ok = sc.cache["key1"]["hash4"]
-// 	require.True(t, ok)
-
-// 	sc.PrettyPrint()
-
-// 	// Prune values with round below 5
-// 	sc.PruneRoundBelow(5)
-
-// 	// Verify that all values are pruned
-// 	_, ok = sc.cache["key1"]["hash1"]
-// 	require.False(t, ok)
-
-// 	_, ok = sc.cache["key1"]["hash2"]
-// 	require.False(t, ok)
-
-// 	_, ok = sc.cache["key1"]["hash3"]
-// 	require.False(t, ok)
-
-// 	_, ok = sc.cache["key1"]["hash4"]
-// 	require.False(t, ok)
-// 	sc.PrettyPrint()
-// }
-
 type Foo struct {
 	V string
 }
