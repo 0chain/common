@@ -161,7 +161,7 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		return nil, false
 	}
 
-	oldBlockHash := blockHash
+	// oldBlockHash := blockHash
 
 	var count int
 	for {
@@ -189,19 +189,19 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		v := vv.(valueNode)
 
 		// save into current block cache only when it's 20 rounds behind
-		if count >= 20 {
-			bvsi, err := lru.New(200)
-			if err != nil {
-				panic(err)
-			}
+		// if count >= 20 {
+		// 	bvsi, err := lru.New(200)
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
 
-			bvsi.Add(oldBlockHash, v)
+		// 	bvsi.Add(oldBlockHash, v)
 
-			sc.cache.Add(key, bvsi)
-			logging.Logger.Debug("state cache - migrate from previous block",
-				zap.String("key", key),
-				zap.Int("depth", count))
-		}
+		// 	sc.cache.Add(key, bvsi)
+		// 	logging.Logger.Debug("state cache - migrate from previous block",
+		// 		zap.String("key", key),
+		// 		zap.Int("depth", count))
+		// }
 
 		if v.deleted {
 			logging.Logger.Debug("state cache - is deleted")
