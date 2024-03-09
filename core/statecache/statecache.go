@@ -50,10 +50,10 @@ func Copyable(v interface{}) (Copyer, bool) {
 }
 
 type valueNode struct {
-	data          Value
-	deleted       bool   // indicates the value was removed
-	round         int64  // round number when this value is updated
-	prevBlockHash string // previous block hash
+	data    Value
+	deleted bool // indicates the value was removed
+	// round         int64  // round number when this value is updated
+	// prevBlockHash string // previous block hash
 }
 
 type StateCache struct {
@@ -161,6 +161,8 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		return nil, false
 	}
 
+	oldBlockHash := blockHash
+
 	var count int
 	for {
 		count++
@@ -185,6 +187,22 @@ func (sc *StateCache) Get(key, blockHash string) (Value, bool) {
 		}
 
 		v := vv.(valueNode)
+
+		// save into current block cache only when it's 20 rounds behind
+		if count >= 20 {
+			bvsi, err := lru.New(200)
+			if err != nil {
+				panic(err)
+			}
+
+			bvsi.Add(oldBlockHash, v)
+
+			sc.cache.Add(key, bvsi)
+			logging.Logger.Debug("state cache - migrate from previous block",
+				zap.String("key", key),
+				zap.Int("depth", count))
+		}
+
 		if v.deleted {
 			logging.Logger.Debug("state cache - is deleted")
 			return nil, false

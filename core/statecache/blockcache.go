@@ -53,9 +53,7 @@ func (pcc *BlockCache) Set(key string, e Value) {
 	pcc.mu.Lock()
 
 	pcc.cache[key] = valueNode{
-		data:          e.Clone(),
-		round:         pcc.round,
-		prevBlockHash: pcc.prevBlockHash,
+		data: e.Clone(),
 	}
 	pcc.mu.Unlock()
 }
@@ -69,7 +67,6 @@ func (pcc *BlockCache) setValue(key string, v valueNode) {
 	defer pcc.mu.Unlock()
 
 	v.data = v.data.Clone()
-	v.prevBlockHash = pcc.prevBlockHash
 	pcc.cache[key] = v
 }
 
@@ -92,20 +89,22 @@ func (pcc *BlockCache) Get(key string) (Value, bool) {
 		return nil, false
 	}
 
-	v, ok := pcc.main.Get(key, pcc.prevBlockHash)
-	if ok {
-		// load the value from the state cache and store it in the block cache
-		vn := valueNode{
-			data:          v,
-			round:         pcc.round,
-			prevBlockHash: pcc.prevBlockHash,
-		}
+	return pcc.main.Get(key, pcc.prevBlockHash)
 
-		pcc.cache[key] = vn
-		return v, true
-	}
+	// v, ok := pcc.main.Get(key, pcc.prevBlockHash)
+	// if ok {
+	// 	// load the value from the state cache and store it in the block cache
+	// 	vn := valueNode{
+	// 		data:          v,
+	// 		round:         pcc.round,
+	// 		prevBlockHash: pcc.prevBlockHash,
+	// 	}
 
-	return nil, false
+	// 	pcc.cache[key] = vn
+	// 	return v, true
+	// }
+
+	// return nil, false
 }
 
 // Remove marks the value with the given key as deleted in the pre-commit cache
@@ -121,7 +120,6 @@ func (pcc *BlockCache) remove(key string) {
 	} else {
 		pcc.cache[key] = valueNode{
 			deleted: true,
-			round:   pcc.round,
 		}
 	}
 }

@@ -34,8 +34,7 @@ func (tc *TransactionCache) Set(key string, e Value) {
 
 	// logging.Logger.Debug("txn cache set", zap.String("key", key))
 	tc.cache[key] = valueNode{
-		data:  e.Clone(),
-		round: tc.round,
+		data: e.Clone(),
 	}
 }
 
@@ -78,7 +77,6 @@ func (tc *TransactionCache) Remove(key string) {
 	} else {
 		tc.cache[key] = valueNode{
 			deleted: true,
-			round:   tc.round,
 			data:    &EmptyValue{},
 		}
 	}
