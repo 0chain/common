@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/0chain/common/core/common"
+	"github.com/0chain/common/core/statecache"
 
 	"github.com/0chain/common/core/logging"
 	. "github.com/0chain/common/core/logging"
@@ -26,13 +27,15 @@ type MerklePatriciaTrie struct {
 	ChangeCollector ChangeCollectorI
 	Version         Sequence
 	missingNodeKeys []Key
+	cache           *statecache.TransactionCache
 }
 
 /*NewMerklePatriciaTrie - create a new patricia merkle trie */
-func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key) *MerklePatriciaTrie {
+func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key, cache *statecache.TransactionCache) *MerklePatriciaTrie {
 	mpt := &MerklePatriciaTrie{
 		mutex: &sync.RWMutex{},
 		db:    db,
+		cache: cache,
 	}
 	mpt.root = root
 	mpt.ChangeCollector = NewChangeCollector(root)
@@ -42,14 +45,31 @@ func NewMerklePatriciaTrie(db NodeDB, version Sequence, root Key) *MerklePatrici
 
 // CloneMPT - clone an existing MPT so it can go off of a different root
 func CloneMPT(mpt MerklePatriciaTrieI) *MerklePatriciaTrie {
-	clone := NewMerklePatriciaTrie(mpt.GetNodeDB(), mpt.GetVersion(), mpt.GetRoot())
+	sc := statecache.NewStateCache()
+	_, txnCache := statecache.NewBlockTxnCaches(sc, statecache.Block{})
+	clone := NewMerklePatriciaTrie(mpt.GetNodeDB(), mpt.GetVersion(), mpt.GetRoot(), txnCache)
 	return clone
 }
 
+func (mpt *MerklePatriciaTrie) Cache() *statecache.TransactionCache {
+	return mpt.cache
+}
+
 func (mpt *MerklePatriciaTrie) getNode(key Key) (n Node, err error) {
+	v, ok := mpt.cache.Get(string(key))
+	if ok {
+		mpt.cache.AddHit()
+		n = v.(Node)
+		return
+	}
+
 	n, err = mpt.db.GetNode(key)
 	if err == ErrNodeNotFound {
 		mpt.addMissingNodeKeys(key)
+	}
+	if err == nil {
+		mpt.cache.AddMiss()
+		mpt.cache.Set(string(key), n)
 	}
 	return
 }
@@ -647,25 +667,9 @@ func (mpt *MerklePatriciaTrie) deleteAtNode(key Key, node Node, prefix, path Pat
 		return mpt.insertNode(node, nnode)
 	case *LeafNode:
 		if bytes.Equal(path, nodeImpl.Path) {
-			// Keep the logs until we are 100 percent sure that the MPT bug is fixed
-			logging.Logger.Debug("MPT - delete leaf node, deleteAtNode, leaf node",
-				zap.String("prefix path", ToHex(prefix)),
-				zap.String("path", ToHex(path)),
-				zap.String("node path", ToHex(nodeImpl.Path)),
-				zap.String("key", ToHex(key)),
-				zap.String("nodeImpl key", nodeImpl.GetHash()),
-				zap.Int64("node version", int64(nodeImpl.GetVersion())))
 			return mpt.deleteAfterPathTraversal(node)
 		}
 
-		// Keep the logs until we are 100 percent sure that the MPT bug is fixed
-		logging.Logger.Debug("MPT - value not present, deleteAtNode, leaf node, path not match",
-			zap.String("prefix path", ToHex(prefix)),
-			zap.String("path", ToHex(path)),
-			zap.String("node path", ToHex(nodeImpl.Path)),
-			zap.String("key", ToHex(key)),
-			zap.String("nodeImpl key", nodeImpl.GetHash()),
-			zap.Int64("node version", int64(nodeImpl.GetVersion())))
 		return nil, nil, ErrValueNotPresent // There is nothing to delete
 	case *ExtensionNode:
 		matchPrefix := mpt.matchingPrefix(path, nodeImpl.Path)
@@ -856,6 +860,9 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 	if err := mpt.db.PutNode(ckey, newNode); err != nil {
 		return nil, nil, err
 	}
+
+	mpt.cache.Set(string(ckey), newNode)
+
 	//If same node is inserted by client, don't add them into change collector
 	if oldNode == nil {
 		mpt.ChangeCollector.AddChange(oldNode, newNode)
@@ -867,6 +874,8 @@ func (mpt *MerklePatriciaTrie) insertNode(oldNode Node, newNode Node) (Node, Key
 			if err := mpt.db.DeleteNode(okey); err != nil {
 				return nil, nil, err
 			}
+
+			mpt.cache.Remove(string(okey))
 		}
 	}
 	return newNode, ckey, nil
@@ -878,7 +887,13 @@ func (mpt *MerklePatriciaTrie) deleteNode(node Node) error {
 	}
 	//Logger.Debug("delete node", zap.Any("version", mpt.Version), zap.String("key", node.GetHash()))
 	mpt.ChangeCollector.DeleteChange(node)
-	return mpt.db.DeleteNode(node.GetHashBytes())
+	ckey := node.GetHashBytes()
+	err := mpt.db.DeleteNode(ckey)
+	if err != nil {
+		return err
+	}
+	mpt.cache.Remove(string(ckey))
+	return nil
 }
 
 func (mpt *MerklePatriciaTrie) matchingPrefix(p1 Path, p2 Path) Path {

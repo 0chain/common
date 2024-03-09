@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"time"
+
+	"github.com/0chain/common/core/statecache"
 )
 
 // MPTMaxAllowableNodeSize - Maximum allowable size of MPT node
@@ -66,6 +68,8 @@ type MerklePatriciaTrieI interface {
 	MergeMPTChanges(mpt2 MerklePatriciaTrieI) error
 	MergeChanges(newRoot Key, changes []*NodeChange, deletes []Node, startRoot Key) error
 	MergeDB(ndb NodeDB, root Key) error
+
+	Cache() *statecache.TransactionCache
 }
 
 // ContextKey - a type for context key

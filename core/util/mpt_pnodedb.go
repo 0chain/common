@@ -144,7 +144,7 @@ func (pndb *PNodeDB) GetNode(key Key) (Node, error) {
 
 /*PutNode - implement interface */
 func (pndb *PNodeDB) PutNode(key Key, node Node) error {
-	nd := node.Clone()
+	nd := node.CloneNode()
 	data := nd.Encode()
 	if DebugMPTNode && !bytes.Equal(key, nd.GetHashBytes()) {
 		logging.Logger.Error("put node key not match",
@@ -362,7 +362,7 @@ func (pndb *PNodeDB) MultiPutNode(keys []Key, nodes []Node) error {
 	wb := grocksdb.NewWriteBatch()
 	defer wb.Destroy()
 	for idx, key := range keys {
-		nd := nodes[idx].Clone()
+		nd := nodes[idx].CloneNode()
 		if !bytes.Equal(key, nd.GetHashBytes()) {
 			logging.Logger.Error("put node key not match",
 				zap.String("key", ToHex(key)),

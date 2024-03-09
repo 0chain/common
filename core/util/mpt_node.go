@@ -11,6 +11,7 @@ import (
 
 	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/logging"
+	"github.com/0chain/common/core/statecache"
 	"go.uber.org/zap"
 )
 
@@ -22,13 +23,13 @@ const (
 	NodeTypesAll          = NodeTypeValueNode | NodeTypeLeafNode | NodeTypeFullNode | NodeTypeExtensionNode
 )
 
-//Separator - used to separate fields when creating data array to hash
+// Separator - used to separate fields when creating data array to hash
 const Separator = ':'
 
-//ErrInvalidEncoding - error to indicate invalid encoding
+// ErrInvalidEncoding - error to indicate invalid encoding
 var ErrInvalidEncoding = errors.New("invalid node encoding")
 
-//PathElements - all the bytes that can be used as path elements as ascii characters
+// PathElements - all the bytes that can be used as path elements as ascii characters
 var PathElements = []byte("0123456789abcdef")
 
 /*Node - a node interface */
@@ -36,25 +37,26 @@ type Node interface {
 	Serializable
 	Hashable
 	OriginTrackerI
-	Clone() Node
+	statecache.Value
+	CloneNode() Node
 	GetNodeType() byte
 	GetOriginTracker() OriginTrackerI
 	SetOriginTracker(ot OriginTrackerI)
 }
 
-//OriginTrackerNode - a node that implements origin tracking
+// OriginTrackerNode - a node that implements origin tracking
 type OriginTrackerNode struct {
 	OriginTracker OriginTrackerI `json:"o,omitempty"`
 }
 
-//NewOriginTrackerNode - create a new origin tracker node
+// NewOriginTrackerNode - create a new origin tracker node
 func NewOriginTrackerNode() *OriginTrackerNode {
 	otn := &OriginTrackerNode{}
 	otn.OriginTracker = &OriginTracker{}
 	return otn
 }
 
-//Clone - clone the given origin tracker node
+// Clone - clone the given origin tracker node
 func (otn *OriginTrackerNode) Clone() *OriginTrackerNode {
 	clone := NewOriginTrackerNode()
 	clone.OriginTracker.SetOrigin(otn.GetOrigin())
@@ -62,42 +64,42 @@ func (otn *OriginTrackerNode) Clone() *OriginTrackerNode {
 	return clone
 }
 
-//SetOriginTracker - implement interface
+// SetOriginTracker - implement interface
 func (otn *OriginTrackerNode) SetOriginTracker(ot OriginTrackerI) {
 	otn.OriginTracker = ot
 }
 
-//SetOrigin - implement interface
+// SetOrigin - implement interface
 func (otn *OriginTrackerNode) SetOrigin(origin Sequence) {
 	otn.OriginTracker.SetOrigin(origin)
 }
 
-//GetOrigin - implement interface
+// GetOrigin - implement interface
 func (otn *OriginTrackerNode) GetOrigin() Sequence {
 	return otn.OriginTracker.GetOrigin()
 }
 
-//SetVersion - implement interface
+// SetVersion - implement interface
 func (otn *OriginTrackerNode) SetVersion(version Sequence) {
 	otn.OriginTracker.SetVersion(version)
 }
 
-//GetVersion - implement interface
+// GetVersion - implement interface
 func (otn *OriginTrackerNode) GetVersion() Sequence {
 	return otn.OriginTracker.GetVersion()
 }
 
-//Write - implement interface
+// Write - implement interface
 func (otn *OriginTrackerNode) Write(w io.Writer) error {
 	return otn.OriginTracker.Write(w)
 }
 
-//Read - implement interface
+// Read - implement interface
 func (otn *OriginTrackerNode) Read(r io.Reader) error {
 	return otn.OriginTracker.Read(r)
 }
 
-//GetOriginTracker - implement interface
+// GetOriginTracker - implement interface
 func (otn *OriginTrackerNode) GetOriginTracker() OriginTrackerI {
 	return otn.OriginTracker
 }
@@ -108,7 +110,7 @@ type ValueNode struct {
 	*OriginTrackerNode `json:"o,omitempty"`
 }
 
-//NewValueNode - create a new value node
+// NewValueNode - create a new value node
 func NewValueNode() *ValueNode {
 	vn := &ValueNode{}
 	vn.OriginTrackerNode = NewOriginTrackerNode()
@@ -116,13 +118,29 @@ func NewValueNode() *ValueNode {
 }
 
 /*Clone - implement interface */
-func (vn *ValueNode) Clone() Node {
+func (vn *ValueNode) CloneNode() Node {
 	clone := NewValueNode()
 	clone.OriginTrackerNode = vn.OriginTrackerNode.Clone()
 	if vn.Value != nil {
 		clone.SetValue(vn.GetValue())
 	}
 	return clone
+}
+
+func (vn *ValueNode) Clone() statecache.Value {
+	return vn.CloneNode()
+}
+
+func (vn *ValueNode) CopyFrom(v interface{}) bool {
+	vv, ok := v.(*ValueNode)
+	if !ok {
+		return false
+	}
+
+	cv := vv.CloneNode().(*ValueNode)
+
+	*vn = *cv
+	return true
 }
 
 /*GetNodeType - implement interface */
@@ -288,7 +306,7 @@ func (ln *LeafNode) Decode(buf []byte) error {
 }
 
 /*Clone - implement interface */
-func (ln *LeafNode) Clone() Node {
+func (ln *LeafNode) CloneNode() Node {
 	clone := &LeafNode{}
 	clone.OriginTrackerNode = ln.OriginTrackerNode.Clone()
 	clone.Prefix = concat(ln.Prefix)
@@ -296,6 +314,22 @@ func (ln *LeafNode) Clone() Node {
 	// path will never be updated inplace and so ok
 	clone.SetValue(ln.GetValue())
 	return clone
+}
+
+func (ln *LeafNode) Clone() statecache.Value {
+	return ln.CloneNode()
+}
+
+func (ln *LeafNode) CopyFrom(v interface{}) bool {
+	vv, ok := v.(*LeafNode)
+	if !ok {
+		return false
+	}
+
+	cv := vv.CloneNode().(*LeafNode)
+
+	*ln = *cv
+	return true
 }
 
 /*GetNodeType - implement interface */
@@ -422,7 +456,7 @@ func (fn *FullNode) Decode(buf []byte) error {
 }
 
 /*Clone - implement interface */
-func (fn *FullNode) Clone() Node {
+func (fn *FullNode) CloneNode() Node {
 	clone := &FullNode{}
 	clone.OriginTrackerNode = fn.OriginTrackerNode.Clone()
 	for idx, ckey := range fn.Children {
@@ -435,6 +469,22 @@ func (fn *FullNode) Clone() Node {
 		clone.SetValue(fn.GetValue())
 	}
 	return clone
+}
+
+func (fn *FullNode) Clone() statecache.Value {
+	return fn.CloneNode()
+}
+
+func (fn *FullNode) CopyFrom(v interface{}) bool {
+	vv, ok := v.(*FullNode)
+	if !ok {
+		return false
+	}
+
+	cv := vv.CloneNode().(*FullNode)
+
+	*fn = *cv
+	return true
 }
 
 /*GetNodeType - implement interface */
@@ -575,12 +625,28 @@ func (en *ExtensionNode) Decode(buf []byte) error {
 }
 
 /*Clone - implement interface */
-func (en *ExtensionNode) Clone() Node {
+func (en *ExtensionNode) CloneNode() Node {
 	clone := &ExtensionNode{}
 	clone.OriginTrackerNode = en.OriginTrackerNode.Clone()
 	clone.Path = en.Path       // path will never be updated inplace and so ok
 	clone.NodeKey = en.NodeKey // nodekey will never be updated inplace and so ok
 	return clone
+}
+
+func (en *ExtensionNode) Clone() statecache.Value {
+	return en.CloneNode()
+}
+
+func (en *ExtensionNode) CopyFrom(v interface{}) bool {
+	vv, ok := v.(*ExtensionNode)
+	if !ok {
+		return false
+	}
+
+	cv := vv.CloneNode().(*ExtensionNode)
+
+	*en = *cv
+	return true
 }
 
 /*GetNodeType - implement interface */

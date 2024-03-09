@@ -141,7 +141,7 @@ func (cc *ChangeCollector) UpdateChanges(ndb NodeDB, origin Sequence, includeDel
 	nodes := make([]Node, len(cc.Changes))
 	idx := 0
 	for _, c := range cc.Changes {
-		nodes[idx] = c.New.Clone()
+		nodes[idx] = c.New.CloneNode()
 		keys[idx] = nodes[idx].GetHashBytes()
 		keysStr[idx] = nodes[idx].GetHash()
 		idx++
@@ -208,17 +208,17 @@ func (cc *ChangeCollector) Clone() ChangeCollectorI {
 
 	for k, v := range cc.Changes {
 		change := &NodeChange{
-			New: v.New.Clone(),
+			New: v.New.CloneNode(),
 		}
 		if v.Old != nil {
-			change.Old = v.Old.Clone()
+			change.Old = v.Old.CloneNode()
 		}
 
 		c.Changes[k] = change
 	}
 
 	for k, v := range cc.Deletes {
-		c.Deletes[k] = v.Clone()
+		c.Deletes[k] = v.CloneNode()
 	}
 
 	return c

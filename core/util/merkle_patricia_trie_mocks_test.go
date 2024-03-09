@@ -10,6 +10,7 @@ import (
 
 	"github.com/0chain/common/core/logging"
 	"github.com/0chain/common/core/mocks"
+	"github.com/0chain/common/core/statecache"
 	. "github.com/0chain/common/core/util"
 	"github.com/stretchr/testify/mock"
 )
@@ -21,7 +22,7 @@ func init() {
 func TestMPTSaveChanges(t *testing.T) {
 	mockNodeDB1 := &mocks.NodeDB{}
 	mockNodeDB1.On("PutNode", mock.Anything, mock.Anything).Return(nil)
-	mpt := NewMerklePatriciaTrie(mockNodeDB1, Sequence(0), nil)
+	mpt := NewMerklePatriciaTrie(mockNodeDB1, Sequence(0), nil, statecache.NewEmpty())
 	_, err := mpt.Insert(Path("key"), &Txn{"value"})
 	require.NoError(t, err)
 	mockNodeDB2 := &mocks.NodeDB{}
