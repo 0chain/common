@@ -22,7 +22,7 @@ type BlockCacher interface {
 // Call `Commit()` method to merge
 // the changes to the StateCache when the block is executed.
 type BlockCache struct {
-	mu            sync.RWMutex
+	mu            sync.Mutex
 	cache         map[string]valueNode
 	main          *StateCache
 	blockHash     string
@@ -75,8 +75,8 @@ func (pcc *BlockCache) setValue(key string, v valueNode) {
 
 // Get returns the value with the given key
 func (pcc *BlockCache) Get(key string) (Value, bool) {
-	pcc.mu.RLock()
-	defer pcc.mu.RUnlock()
+	pcc.mu.Lock()
+	defer pcc.mu.Unlock()
 
 	// Check the cache first
 	value, ok := pcc.cache[key]
