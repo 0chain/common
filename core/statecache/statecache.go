@@ -71,7 +71,7 @@ func NewStateCache() *StateCache {
 		panic(err)
 	}
 
-	maxHisDepth := 100
+	maxHisDepth := 2000
 	hCache, err := lru.New(maxHisDepth)
 	if err != nil {
 		panic(err)
