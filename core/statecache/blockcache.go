@@ -92,7 +92,20 @@ func (pcc *BlockCache) Get(key string) (Value, bool) {
 		return nil, false
 	}
 
-	return pcc.main.Get(key, pcc.prevBlockHash)
+	v, ok := pcc.main.Get(key, pcc.prevBlockHash)
+	if ok {
+		// load the value from the state cache and store it in the block cache
+		vn := valueNode{
+			data:          v,
+			round:         pcc.round,
+			prevBlockHash: pcc.prevBlockHash,
+		}
+
+		pcc.cache[key] = vn
+		return v, true
+	}
+
+	return nil, false
 }
 
 // Remove marks the value with the given key as deleted in the pre-commit cache
