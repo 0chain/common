@@ -304,7 +304,6 @@ func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) int64 
 						zap.Error(err))
 				}
 				cleanedCount += batchSize
-				pndb.Flush()
 				deadKeys = deadKeys[:0]
 			}
 		}
@@ -312,6 +311,7 @@ func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) int64 
 	})
 
 	if len(deadKeys) == 0 {
+		pndb.Flush()
 		return cleanedCount
 	}
 
