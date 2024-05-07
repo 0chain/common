@@ -291,7 +291,7 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 // This should be used together with the GetAllMissingNodes function, which will
 // mark all nodes with version of the MPT, which means all other nodes are dead nodes.
 func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) int64 {
-	const batchSize = 1024
+	const batchSize = 128
 	var cleanedCount int64
 	deadKeys := make([]Key, 0, batchSize)
 	pndb.Iterate(ctx, func(ctx context.Context, key Key, node Node) error {
@@ -303,6 +303,9 @@ func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) int64 
 						zap.Int64("version", version),
 						zap.Error(err))
 				}
+				logging.Logger.Debug("clean up dead nodes batch",
+					zap.Int64("batch size", batchSize),
+					zap.Int64("total cleaned", cleanedCount))
 				cleanedCount += batchSize
 				deadKeys = deadKeys[:0]
 			}
@@ -311,7 +314,7 @@ func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) int64 
 	})
 
 	if len(deadKeys) == 0 {
-		pndb.Flush()
+		// pndb.Flush()
 		return cleanedCount
 	}
 
@@ -320,7 +323,7 @@ func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) int64 
 			zap.Int64("version", version),
 			zap.Error(err))
 	}
-	pndb.Flush()
+	// pndb.Flush()
 	cleanedCount += int64(len(deadKeys))
 	deadKeys = deadKeys[:0]
 	return cleanedCount
