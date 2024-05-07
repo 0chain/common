@@ -323,7 +323,7 @@ func (mpt *MerklePatriciaTrie) GetAllMissingNodes() ([]Key, error) {
 	mpt.mutex.RLock()
 	defer mpt.mutex.RUnlock()
 	var missingNodes []Key
-	if err := mpt.pp2(mpt.root, 0, &missingNodes); err != nil {
+	if err := mpt.pp3(mpt.root, 0, &missingNodes); err != nil {
 		return nil, err
 	}
 
@@ -950,6 +950,34 @@ func (mpt *MerklePatriciaTrie) pp2(key Key, depth byte, missingNodes *[]Key) err
 		}
 		return err
 	}
+	switch nodeImpl := node.(type) {
+	case *LeafNode:
+	case *ExtensionNode:
+		_ = mpt.pp2(nodeImpl.NodeKey, depth+2, missingNodes)
+	case *FullNode:
+		for _, cnode := range nodeImpl.Children {
+			if cnode == nil {
+				continue
+			}
+			_ = mpt.pp2(cnode, depth+2, missingNodes)
+		}
+	}
+	return nil
+}
+
+func (mpt *MerklePatriciaTrie) pp3(key Key, depth byte, missingNodes *[]Key) error {
+	node, err := mpt.getNode(key)
+	if err != nil {
+		if missingNodes != nil && err == ErrNodeNotFound {
+			ckey := make([]byte, len(key))
+			copy(ckey, key)
+			*missingNodes = append(*missingNodes, ckey)
+		}
+		return err
+	}
+	// mark new version
+	node.SetVersion(mpt.Version)
+	mpt.getNodeDB().PutNode(key, node)
 	switch nodeImpl := node.(type) {
 	case *LeafNode:
 	case *ExtensionNode:

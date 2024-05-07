@@ -287,6 +287,39 @@ func (pndb *PNodeDB) PruneBelowVersion(ctx context.Context, version int64) error
 	}
 }
 
+// CleanupDeadNodes iterating the MPT tree and remove all dead nodes that are below the given version.
+// This should be used together with the GetAllMissingNodes function, which will
+// mark all nodes with version of the MPT, which means all other nodes are dead nodes.
+func (pndb *PNodeDB) CleanupDeadNodes(ctx context.Context, version int64) {
+	const batchSize = 1024
+	deadKeys := make([]Key, 0, batchSize)
+	pndb.Iterate(ctx, func(ctx context.Context, key Key, node Node) error {
+		if node.GetVersion() < Sequence(version) {
+			deadKeys = append(deadKeys, key)
+			if len(deadKeys) >= batchSize {
+				if err := pndb.MultiDeleteNode(deadKeys); err != nil {
+					logging.Logger.Error("Update dead nodes records failed",
+						zap.Int64("version", version),
+						zap.Error(err))
+				}
+				deadKeys = deadKeys[:0]
+			}
+		}
+		return nil
+	})
+
+	if len(deadKeys) == 0 {
+		return
+	}
+
+	if err := pndb.MultiDeleteNode(deadKeys); err != nil {
+		logging.Logger.Error("Update dead nodes records failed",
+			zap.Int64("version", version),
+			zap.Error(err))
+	}
+	deadKeys = deadKeys[:0]
+}
+
 func uint64ToBytes(r uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, r)
