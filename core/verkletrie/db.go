@@ -1,7 +1,5 @@
 package verkletrie
 
-import "errors"
-
 const IdealBatchSize = 100 * 1024
 
 type BatchWriter interface {
@@ -35,7 +33,7 @@ func (m *InMemoryDB) Set(key []byte, value []byte) error {
 func (m *InMemoryDB) Get(key []byte) ([]byte, error) {
 	v, ok := m.store[string(key)]
 	if !ok {
-		return nil, errors.New("key not found")
+		return nil, ErrNodeNotFound
 	}
 
 	return v, nil

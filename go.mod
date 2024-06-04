@@ -3,7 +3,10 @@ module github.com/0chain/common
 go 1.18
 
 require (
+	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c
+	github.com/ethereum/go-verkle v0.1.1-0.20240306133620-7d920df305f0
 	github.com/hashicorp/golang-lru v0.5.4
+	github.com/holiman/uint256 v1.2.4
 	github.com/linxGnu/grocksdb v1.8.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cast v1.5.0
@@ -21,9 +24,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.13.0 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.12.1 // indirect
-	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/ethereum/go-verkle v0.1.1-0.20240306133620-7d920df305f0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
