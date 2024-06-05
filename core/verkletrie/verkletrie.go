@@ -73,6 +73,16 @@ func (m *VerkleTrie) GetFileRootHash(filepathHash []byte) ([]byte, error) {
 	return m.GetWithHashedKey(key)
 }
 
+func (m *VerkleTrie) DeleteFileRootHash(filepathHash []byte) (bool, error) {
+	key := GetTreeKeyForFileHash(filepathHash)
+	return m.DeleteWithHashedKey(key)
+}
+
+func (m *VerkleTrie) InsertFileRootHash(filepathHash []byte, rootHash []byte) error {
+	key := GetTreeKeyForFileHash(filepathHash)
+	return m.Insert(key, rootHash)
+}
+
 func (m *VerkleTrie) InsertValue(filepathHash []byte, data []byte) error {
 	// insert the value size
 	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
@@ -142,7 +152,7 @@ func (m *VerkleTrie) Insert(key []byte, value []byte) error {
 	return m.root.Insert(key, value, m.nodeResolver)
 }
 
-func (m *VerkleTrie) Delete(key []byte) (bool, error) {
+func (m *VerkleTrie) DeleteWithHashedKey(key []byte) (bool, error) {
 	return m.root.Delete(key, m.nodeResolver)
 }
 

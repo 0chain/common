@@ -53,7 +53,7 @@ func TestVerkleTrie_Delete(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Delete some data
-	_, err = vt.Delete(keys[0])
+	_, err = vt.DeleteWithHashedKey(keys[0])
 	assert.Nil(t, err)
 
 	// Check that the data is no longer there
@@ -216,4 +216,28 @@ func TestProofNotExistKey(t *testing.T) {
 		err = VerifyProofAbsence(dp, sdiff, root[:], keys[2:])
 		assert.EqualError(t, err, "verkle proof contains value")
 	})
+}
+
+func TestFileRootHash(t *testing.T) {
+	vt := New("alloc_1", NewInMemoryVerkleDB())
+	for i := 0; i < len(keys[:3]); i++ {
+		err := vt.InsertFileRootHash(keys[i], keys[i])
+		assert.Nil(t, err)
+	}
+
+	vt.Commit()
+	_, err := vt.DeleteFileRootHash(keys[2])
+	assert.Nil(t, err)
+	vt.Commit()
+
+	// Verify that the root hash of the file is deleted
+	// v, err := vt.(GetTreeKeyForFileHash(keys[2]))
+	v2, err := vt.GetFileRootHash(keys[2])
+	assert.Nil(t, err)
+	assert.Nil(t, v2)
+
+	v1, err := vt.GetFileRootHash(keys[1])
+	assert.Nil(t, err)
+	assert.NotNil(t, v1)
+	fmt.Printf("%x\n", v1)
 }
