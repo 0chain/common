@@ -33,11 +33,11 @@ func TestVerkleTrie_Insert(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Check that the data is there
-	value, err := vt.Get(keys[0])
+	value, err := vt.GetWithHashedKey(keys[0])
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("value1"), value)
 
-	value, err = vt.Get(keys[1])
+	value, err = vt.GetWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("value2"), value)
 }
@@ -57,11 +57,11 @@ func TestVerkleTrie_Delete(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Check that the data is no longer there
-	value, err := vt.Get(keys[0])
+	value, err := vt.GetWithHashedKey(keys[0])
 	assert.Nil(t, err)
 	assert.Nil(t, value)
 
-	value, err = vt.Get(keys[1])
+	value, err = vt.GetWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("value2"), value)
 }
@@ -84,11 +84,11 @@ func TestVerkleTrie_Commit(t *testing.T) {
 	// Create a new tree with the db
 	newVt := New("alloc_1", db)
 	// Check if the data can be acquired
-	value, err := newVt.Get(keys[0])
+	value, err := newVt.GetWithHashedKey(keys[0])
 	assert.Nil(t, err)
 	assert.Equal(t, keys[0], value)
 
-	value, err = newVt.Get(keys[1])
+	value, err = newVt.GetWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, keys[1], value)
 }
@@ -100,13 +100,13 @@ func TestTreeKeyStorage(t *testing.T) {
 	filepathHash := keys[0]
 	rootHash := keys[1]
 	// insert file: alloc1/testfile.txt
-	key := GetTreeKeyForFileRootHash(filepathHash)
+	key := GetTreeKeyForFileHash(filepathHash)
 	err := vt.Insert(key, rootHash)
 	assert.Nil(t, err)
 
 	vt.Flush()
 
-	v, err := vt.Get(key)
+	v, err := vt.GetWithHashedKey(key)
 	assert.Nil(t, err)
 
 	assert.Equal(t, rootHash, v)

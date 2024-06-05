@@ -64,13 +64,13 @@ func (m *VerkleTrie) nodeResolver(key []byte) ([]byte, error) {
 	return m.db.Get(append(m.rootKey, key...))
 }
 
-func (m *VerkleTrie) Get(key []byte) ([]byte, error) {
+func (m *VerkleTrie) GetWithHashedKey(key []byte) ([]byte, error) {
 	return m.root.Get(key, m.nodeResolver)
 }
 
 func (m *VerkleTrie) GetFileRootHash(filepathHash []byte) ([]byte, error) {
-	key := GetTreeKeyForFileRootHash(filepathHash)
-	return m.Get(key)
+	key := GetTreeKeyForFileHash(filepathHash)
+	return m.GetWithHashedKey(key)
 }
 
 func (m *VerkleTrie) InsertValue(filepathHash []byte, data []byte) error {
@@ -107,7 +107,7 @@ func getStorageDataChunks(data []byte) [][]byte {
 
 func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
-	sizeBytes, err := m.Get(storageSizeKey)
+	sizeBytes, err := m.GetWithHashedKey(storageSizeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	valueBytes := make([]byte, 0, size.Uint64())
 	for i := uint64(0); i < chunkNum.Uint64(); i++ {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, i)
-		chunk, err := m.Get(chunkKey)
+		chunk, err := m.GetWithHashedKey(chunkKey)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	}
 	if mod.Uint64() > 0 {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, chunkNum.Uint64())
-		chunk, err := m.Get(chunkKey)
+		chunk, err := m.GetWithHashedKey(chunkKey)
 		if err != nil {
 			return nil, err
 		}

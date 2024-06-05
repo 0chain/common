@@ -9,9 +9,9 @@ import (
 const (
 	// the position between 2 and 63 are researved in case we need to define new fields
 	VERSION_LEAF_KEY      = 0   // keys ending in 00: version (could be allocation version), which is always set to 0
-	HASH_KEY_LEAF_KEY     = 1   // keys ending in 01: the 32 bytes hash, which could be the root hash of a file
+	FILE_HASH_LEAF_KEY    = 1   // keys ending in 01: file hash, could be the root hash of the file content
 	STORAGE_SIZE_LEAF_KEY = 2   // keys ending in 10: the size of the storage
-	HEADER_STORAGE_OFFSET = 64  // the offset of the storage in the tree
+	HEADER_STORAGE_OFFSET = 16  // the offset of the storage in the tree
 	VERKLE_NODE_WIDTH     = 256 // the width of the verkle node
 	// MAIN_STORAGE_OFFSET   = 256 ^ 31 // the offset of the main storage in the tree
 )
@@ -24,13 +24,13 @@ var (
 	zero                = uint256.NewInt(0)
 	headerStorageOffset = uint256.NewInt(HEADER_STORAGE_OFFSET)
 	verkleNodeWidth     = uint256.NewInt(VERKLE_NODE_WIDTH)
-	headerStorageCap    = VERKLE_NODE_WIDTH - HEADER_STORAGE_OFFSET // the capacity of the header storage
+	headerStorageCap    = VERKLE_NODE_WIDTH - HEADER_STORAGE_OFFSET // the capacity of the header storage, which is (256-16)*32=7168 Bytes(7KB)
 	mainStorageOffset   = new(uint256.Int).Lsh(uint256.NewInt(1), 248 /* 8 * 31*/)
 )
 
-// GetTreeKeyForFileRootHash returns the tree key for the given file root hash
-func GetTreeKeyForFileRootHash(filepathHash []byte) []byte {
-	return GetTreeKey(filepathHash, zero, HASH_KEY_LEAF_KEY)
+// GetTreeKeyForFileHash returns file hash
+func GetTreeKeyForFileHash(filepathHash []byte) []byte {
+	return GetTreeKey(filepathHash, zero, FILE_HASH_LEAF_KEY)
 }
 
 func GetTreeKeyForStorageSize(filepathHash []byte) []byte {
@@ -107,10 +107,10 @@ func GetTreeKey(address []byte, treeIndex *uint256.Int, subIndex byte) []byte {
 	// add a constant point corresponding to poly[0]=[2+256*64].
 	ret.Add(ret, getTreePolyIndex0Point)
 
-	return PointToHash(ret, subIndex)
+	return pointToHash(ret, subIndex)
 }
 
-func PointToHash(evaluated *verkle.Point, suffix byte) []byte {
+func pointToHash(evaluated *verkle.Point, suffix byte) []byte {
 	retb := verkle.HashPointToBytes(evaluated)
 	retb[31] = suffix
 	return retb[:]
