@@ -24,6 +24,7 @@ var (
 	zero                = uint256.NewInt(0)
 	headerStorageOffset = uint256.NewInt(HEADER_STORAGE_OFFSET)
 	verkleNodeWidth     = uint256.NewInt(VERKLE_NODE_WIDTH)
+	headerStorageCap    = VERKLE_NODE_WIDTH - HEADER_STORAGE_OFFSET // the capacity of the header storage
 	mainStorageOffset   = new(uint256.Int).Lsh(uint256.NewInt(1), 248 /* 8 * 31*/)
 )
 
@@ -38,7 +39,7 @@ func GetTreeKeyForStorageSize(filepathHash []byte) []byte {
 
 func GetTreeKeyForStorageSlot(filepathHash []byte, storageKey uint64) []byte {
 	pos := uint256.NewInt(storageKey)
-	if storageKey < VERKLE_NODE_WIDTH-HEADER_STORAGE_OFFSET {
+	if storageKey < uint64(headerStorageCap) {
 		// storage in the header
 		pos.Add(headerStorageOffset, pos)
 	} else {
@@ -46,10 +47,13 @@ func GetTreeKeyForStorageSlot(filepathHash []byte, storageKey uint64) []byte {
 		pos.Add(mainStorageOffset, pos)
 	}
 
-	subIdx := new(uint256.Int)
+	subIdx := uint256.NewInt(0)
 	pos.DivMod(pos, verkleNodeWidth, subIdx)
-
-	return GetTreeKey(filepathHash, pos, subIdx.Bytes()[0])
+	if subIdx.Eq(zero) {
+		return GetTreeKey(filepathHash, pos, 0)
+	} else {
+		return GetTreeKey(filepathHash, pos, subIdx.Bytes()[0])
+	}
 }
 
 func init() {

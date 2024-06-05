@@ -2,14 +2,15 @@ package verkletrie
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
+
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
 )
 
-const DBVerkleNodeKeyPrefix = "verkle_node_"
+var DBVerkleNodeKeyPrefix = []byte("verkle_node_")
 
 var ChunkSize = uint256.NewInt(32) // 32
 
@@ -21,21 +22,23 @@ type (
 )
 
 type VerkleTrie struct {
-	db   DB
-	key  string // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
-	root verkle.VerkleNode
+	db      DB
+	rootKey []byte // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
+	root    verkle.VerkleNode
 }
 
-func DBKey(key string) []byte {
-	return []byte(DBVerkleNodeKeyPrefix + key)
+func rootKey(key string) []byte {
+	return append(DBVerkleNodeKeyPrefix, key...)
 }
 
 func New(key string, db DB) *VerkleTrie {
 	var root verkle.VerkleNode
-	payload, err := db.Get(DBKey(key))
+	rootKey := rootKey(key)
+
+	payload, err := db.Get([]byte(rootKey))
 	if err != nil {
 		if err == ErrNodeNotFound {
-			return &VerkleTrie{root: verkle.New(), key: key, db: db}
+			return &VerkleTrie{root: verkle.New(), rootKey: rootKey, db: db}
 		}
 
 		panic(err)
@@ -47,14 +50,18 @@ func New(key string, db DB) *VerkleTrie {
 	}
 
 	return &VerkleTrie{
-		db:   db,
-		key:  key,
-		root: root,
+		db:      db,
+		rootKey: rootKey,
+		root:    root,
 	}
 }
 
+func (m *VerkleTrie) dbKey(key []byte) []byte {
+	return append([]byte(m.rootKey), key...)
+}
+
 func (m *VerkleTrie) nodeResolver(key []byte) ([]byte, error) {
-	return m.db.Get(DBKey(string(key)))
+	return m.db.Get(append(m.rootKey, key...))
 }
 
 func (m *VerkleTrie) Get(key []byte) ([]byte, error) {
@@ -64,6 +71,38 @@ func (m *VerkleTrie) Get(key []byte) ([]byte, error) {
 func (m *VerkleTrie) GetFileRootHash(filepathHash []byte) ([]byte, error) {
 	key := GetTreeKeyForFileRootHash(filepathHash)
 	return m.Get(key)
+}
+
+func (m *VerkleTrie) InsertValue(filepathHash []byte, data []byte) error {
+	// insert the value size
+	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
+	if err := m.Insert(storageSizeKey, uint256.NewInt(uint64(len(data))).Bytes()); err != nil {
+		return errors.Wrap(err, "insert storage size")
+	}
+
+	chunks := getStorageDataChunks(data)
+	for i, chunk := range chunks {
+		chunkKey := GetTreeKeyForStorageSlot(filepathHash, uint64(i))
+		if err := m.Insert(chunkKey, chunk); err != nil {
+			return errors.Wrap(err, "insert storage chunk")
+		}
+	}
+	return nil
+}
+
+func getStorageDataChunks(data []byte) [][]byte {
+	size := len(data)
+	chunkSize := int(ChunkSize.Uint64())
+	chunks := make([][]byte, 0, size/chunkSize+1)
+
+	chunkNum := size / chunkSize
+	for i := 0; i < chunkNum; i++ {
+		chunks = append(chunks, data[i*chunkSize:(i+1)*chunkSize])
+	}
+	if size%chunkSize > 0 {
+		chunks = append(chunks, data[chunkNum*chunkSize:])
+	}
+	return chunks
 }
 
 func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
@@ -86,9 +125,7 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 			return nil, err
 		}
 
-		// chunk = util.ConvertToLittleEndian(chunk)
-
-		sizeBytes = append(sizeBytes, chunk...)
+		valueBytes = append(valueBytes, chunk...)
 	}
 	if mod.Uint64() > 0 {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, chunkNum.Uint64())
@@ -98,7 +135,7 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 		}
 		valueBytes = append(valueBytes, chunk[:mod.Uint64()]...)
 	}
-	return sizeBytes, nil
+	return valueBytes, nil
 }
 
 func (m *VerkleTrie) Insert(key []byte, value []byte) error {
@@ -113,7 +150,11 @@ func (m *VerkleTrie) Hash() Hash {
 	return m.root.Commit().Bytes()
 }
 
-func (m *VerkleTrie) Commit(saveTrieToDB bool) (Hash, error) {
+func (m *VerkleTrie) Commit() Hash {
+	return m.root.Commit().Bytes()
+}
+
+func (m *VerkleTrie) CommitAndFlush() (Hash, error) {
 	root, ok := m.root.(*verkle.InternalNode)
 	if !ok {
 		return Hash{}, errors.New("unexpected root node type")
@@ -125,10 +166,11 @@ func (m *VerkleTrie) Commit(saveTrieToDB bool) (Hash, error) {
 	}
 
 	batch := m.db.NewBatch()
-	path := make([]byte, 0, len(DBVerkleNodeKeyPrefix)+32)
-	path = append(path, []byte(DBVerkleNodeKeyPrefix)...)
+	rootKeyLen := len(m.rootKey)
+	path := make([]byte, 0, rootKeyLen+32)
+	path = append(path, []byte(m.rootKey)...)
 	for _, node := range nodes {
-		path := append(path[:len(DBVerkleNodeKeyPrefix)], node.Path...)
+		path := append(path[:rootKeyLen], node.Path...)
 		if err := batch.Put(path, node.SerializedBytes); err != nil {
 			return Hash{}, fmt.Errorf("put node to disk: %s", err)
 		}
@@ -141,22 +183,22 @@ func (m *VerkleTrie) Commit(saveTrieToDB bool) (Hash, error) {
 		}
 	}
 
-	if saveTrieToDB {
-		v, err := m.root.Serialize()
-		if err != nil {
-			return Hash{}, fmt.Errorf("serializing root node: %s", err)
-		}
-		if err := batch.Put(DBKey(m.key), v); err != nil {
-			return Hash{}, fmt.Errorf("put root node to disk: %s", err)
-		}
-	}
-
 	if err := batch.Write(); err != nil {
 		return Hash{}, fmt.Errorf("batch write error: %s", err)
 	}
 
 	return m.Hash(), nil
 }
+
+// func (m *VerkleTrie) Flush() error {
+// 	v, err := m.root.Serialize()
+// 	if err != nil {
+// 		return Hash{}, fmt.Errorf("serializing root node: %s", err)
+// 	}
+// 	if err := batch.Put(DBKey(m.key), v); err != nil {
+// 		return Hash{}, fmt.Errorf("put root node to disk: %s", err)
+// 	}
+// }
 
 type Keylist [][]byte
 

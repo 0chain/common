@@ -1,11 +1,8 @@
 package verkletrie
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/ethereum/go-verkle"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -64,19 +61,17 @@ func TestVerkleTrie_Commit(t *testing.T) {
 	db := NewInMemoryVerkleDB()
 	vt := New("alloc_1", db)
 
-	err := vt.Insert(keys[0], append(keys[0], keys[1]...))
+	err := vt.Insert(keys[0], keys[0])
 	assert.Nil(t, err)
 	err = vt.Insert(keys[1], keys[1])
 	assert.Nil(t, err)
 
 	// Commit the tree
-	_, err = vt.Commit(true)
-	assert.Nil(t, err)
+	vt.CommitAndFlush()
 
-	fmt.Println(string(verkle.ToDot(vt.root)))
+	// fmt.Println(string(verkle.ToDot(vt.root)))
 
 	// Create a new tree with the db
-
 	newVt := New("alloc_1", db)
 	// Check if the data can be acquired
 	value, err := newVt.Get(keys[0])
@@ -88,7 +83,7 @@ func TestVerkleTrie_Commit(t *testing.T) {
 	assert.Equal(t, keys[1], value)
 }
 
-func TestTreeKey(t *testing.T) {
+func TestTreeKeyStorage(t *testing.T) {
 	// Createverkletrie
 	vt := New("alloc_1", NewInMemoryVerkleDB())
 
@@ -99,7 +94,7 @@ func TestTreeKey(t *testing.T) {
 	err := vt.Insert(key, rootHash)
 	assert.Nil(t, err)
 
-	vt.Commit(true)
+	vt.Commit()
 
 	v, err := vt.Get(key)
 	assert.Nil(t, err)
@@ -107,20 +102,37 @@ func TestTreeKey(t *testing.T) {
 	assert.Equal(t, rootHash, v)
 
 	bigValue := append(keys[0], keys[1]...)
-	size := len(bigValue)
-	sk := GetTreeKeyForStorageSize(filepathHash)
-	sizeV := uint256.NewInt(uint64(size))
-	vt.Insert(sk, sizeV.Bytes())
-	for i := 0; i < 2; i++ {
-		ssk := GetTreeKeyForStorageSlot(filepathHash, uint64(i))
-		fmt.Println(ssk)
-		vt.Insert(ssk, bigValue[i*32:(i+1)*32])
-	}
+	err = vt.InsertValue(filepathHash, bigValue)
+	assert.Nil(t, err)
 
-	vt.Commit(true)
+	vt.Commit()
 
 	vv, err := vt.GetValue(filepathHash)
 	assert.Nil(t, err)
 
 	assert.Equal(t, bigValue, vv)
+}
+
+func TestTreeStorageLargeData(t *testing.T) {
+	vt := New("alloc_1", NewInMemoryVerkleDB())
+	filepathHash := keys[0]
+
+	mainStoreChunkNum := 1000
+	totalChunkNum := headerStorageCap + mainStoreChunkNum
+
+	values := make([]byte, 0, totalChunkNum*int(ChunkSize.Uint64()))
+	// test to use out all header spaces for storage
+	for i := 0; i < totalChunkNum; i++ {
+		values = append(values, keys[0]...)
+	}
+
+	err := vt.InsertValue(filepathHash, values)
+	assert.Nil(t, err)
+
+	vt.Commit()
+
+	v, err := vt.GetValue(filepathHash)
+	assert.Nil(t, err)
+
+	assert.Equal(t, values, v)
 }
