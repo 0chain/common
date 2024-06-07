@@ -133,8 +133,8 @@ func (vn *ValueNode) Clone() statecache.Value {
 		panic("clone ValueNode encode failed")
 	}
 
-	clone := NewValueNode()
-	if err := clone.Decode(vv); err != nil {
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
 		panic(fmt.Errorf("clone ValueNode decode failed: %v", err))
 	}
 
@@ -332,12 +332,12 @@ func (ln *LeafNode) Clone() statecache.Value {
 		panic("clone LeafNode encode failed")
 	}
 
-	clone := LeafNode{}
-	if err := clone.Decode(vv); err != nil {
-		panic(fmt.Errorf("clone LeafNode decode failed: %v", err))
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
+		panic(fmt.Errorf("clone LeafNode create node failed: %v", err))
 	}
 
-	return &clone
+	return clone
 }
 
 func (ln *LeafNode) CopyFrom(v interface{}) bool {
@@ -497,12 +497,12 @@ func (fn *FullNode) Clone() statecache.Value {
 		panic("clone FullNode encode failed")
 	}
 
-	clone := FullNode{}
-	if err := clone.Decode(vv); err != nil {
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
 		panic(fmt.Errorf("clone FullNode decode failed: %v", err))
 	}
 
-	return &clone
+	return clone
 }
 
 func (fn *FullNode) CopyFrom(v interface{}) bool {
@@ -669,12 +669,12 @@ func (en *ExtensionNode) Clone() statecache.Value {
 		panic("clone ExtensionNode encode failed")
 	}
 
-	clone := ExtensionNode{}
-	if err := clone.Decode(vv); err != nil {
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
 		panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
 	}
 
-	return &clone
+	return clone
 }
 
 func (en *ExtensionNode) CopyFrom(v interface{}) bool {
