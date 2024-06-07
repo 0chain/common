@@ -100,6 +100,26 @@ func (m *VerkleTrie) InsertValue(filepathHash []byte, data []byte) error {
 	return nil
 }
 
+func (m *VerkleTrie) DeleteValue(filepathHash []byte) error {
+	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
+	sizeBytes, err := m.GetWithHashedKey(storageSizeKey)
+	if err != nil {
+		return errors.Wrap(err, "delete value error on getting storage size")
+	}
+
+	size := new(uint256.Int).SetBytes(sizeBytes)
+	if size.CmpUint64(uint64(headerStorageCap)) < 0 {
+		// data is stored in header storage, so just remove the chunks from header
+
+		return nil
+	}
+
+	if _, err := m.DeleteWithHashedKey(storageSizeKey); err != nil {
+		return false, errors.Wrap(err, "delete storage size")
+	}
+
+}
+
 func getStorageDataChunks(data []byte) [][]byte {
 	size := len(data)
 	chunkSize := int(ChunkSize.Uint64())
