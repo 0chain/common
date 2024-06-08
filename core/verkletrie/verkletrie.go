@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/0chain/common/core/verkletrie/database"
 	"github.com/ethereum/go-verkle"
 	"github.com/holiman/uint256"
 )
@@ -14,15 +15,13 @@ var DBVerkleNodeKeyPrefix = []byte("verkle_node_")
 
 var ChunkSize = uint256.NewInt(32) // 32
 
-var ErrNodeNotFound = errors.New("node not found")
-
 type (
 	Hash      [32]byte
 	Address32 [32]byte
 )
 
 type VerkleTrie struct {
-	db      DB
+	db      database.DB
 	rootKey []byte // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
 	root    verkle.VerkleNode
 }
@@ -31,16 +30,15 @@ func rootKey(key string) []byte {
 	return append(DBVerkleNodeKeyPrefix, key...)
 }
 
-func New(key string, db DB) *VerkleTrie {
+func New(key string, db database.DB) *VerkleTrie {
 	var root verkle.VerkleNode
 	rootKey := rootKey(key)
 
 	payload, err := db.Get([]byte(rootKey))
 	if err != nil {
-		if err == ErrNodeNotFound {
+		if err == database.ErrMissingNode {
 			return &VerkleTrie{root: verkle.New(), rootKey: rootKey, db: db}
 		}
-
 		panic(err)
 	}
 
@@ -108,16 +106,31 @@ func (m *VerkleTrie) DeleteValue(filepathHash []byte) error {
 	}
 
 	size := new(uint256.Int).SetBytes(sizeBytes)
-	if size.CmpUint64(uint64(headerStorageCap)) < 0 {
-		// data is stored in header storage, so just remove the chunks from header
-
-		return nil
+	// remove all chunks nodes
+	chunkNum := getChunkNum(*size)
+	for i := 0; i < int(chunkNum); i++ {
+		chunkKey := GetTreeKeyForStorageSlot(filepathHash, uint64(i))
+		_, err = m.DeleteWithHashedKey(chunkKey)
+		if err != nil {
+			return errors.Wrap(err, "delete value error on deleting storage chunk")
+		}
 	}
 
+	// delete the storage size node
 	if _, err := m.DeleteWithHashedKey(storageSizeKey); err != nil {
-		return false, errors.Wrap(err, "delete storage size")
+		return errors.Wrap(err, "delete storage size")
 	}
 
+	return nil
+}
+
+func getChunkNum(size uint256.Int) uint64 {
+	mod := new(uint256.Int)
+	size.DivMod(&size, ChunkSize, mod)
+	if mod.CmpUint64(0) > 0 {
+		return size.Uint64() + 1
+	}
+	return size.Uint64()
 }
 
 func getStorageDataChunks(data []byte) [][]byte {
@@ -143,6 +156,10 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	}
 
 	size := new(uint256.Int).SetBytes(sizeBytes)
+	if size.Uint64() == 0 {
+		return nil, nil
+	}
+
 	mod := new(uint256.Int)
 	chunkNum := new(uint256.Int)
 	chunkNum, mod = size.DivMod(size, ChunkSize, mod)
@@ -190,6 +207,7 @@ func (m *VerkleTrie) Flush() (Hash, error) {
 		return Hash{}, errors.New("unexpected root node type")
 	}
 
+	// TODO: optimize the BatchSerialize to return the modified nodes only to avoid wasting resources
 	nodes, err := root.BatchSerialize()
 	if err != nil {
 		return Hash{}, fmt.Errorf("serializing tree nodes: %s", err)
@@ -205,7 +223,7 @@ func (m *VerkleTrie) Flush() (Hash, error) {
 			return Hash{}, fmt.Errorf("put node to disk: %s", err)
 		}
 
-		if batch.Size() >= IdealBatchSize {
+		if batch.Size() >= database.IdealBatchSize {
 			if err := batch.Write(); err != nil {
 				return Hash{}, fmt.Errorf("batch write error: %s", err)
 			}
@@ -287,10 +305,6 @@ func VerifyProofAbsence(vp *verkle.VerkleProof, stateDiff verkle.StateDiff, stat
 	if err != nil {
 		return err
 	}
-
-	// v, _ := json.MarshalIndent(stateDiff, "", "  ")
-	// fmt.Println(string(v))
-	// fmt.Println(dproof.PreValues)
 
 	for _, v := range dproof.PreValues {
 		if len(v) != 0 {

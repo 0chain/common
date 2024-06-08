@@ -1,6 +1,10 @@
-package verkletrie
+package database
+
+import "errors"
 
 const IdealBatchSize = 100 * 1024
+
+var ErrMissingNode = errors.New("missing node")
 
 type BatchWriter interface {
 	Put(key []byte, value []byte) error
@@ -13,6 +17,7 @@ type DB interface {
 	Set(key []byte, value []byte) error
 	Get(key []byte) ([]byte, error)
 	NewBatch() BatchWriter
+	Close()
 }
 
 type InMemoryDB struct {
@@ -33,7 +38,7 @@ func (m *InMemoryDB) Set(key []byte, value []byte) error {
 func (m *InMemoryDB) Get(key []byte) ([]byte, error) {
 	v, ok := m.store[string(key)]
 	if !ok {
-		return nil, ErrNodeNotFound
+		return nil, ErrMissingNode
 	}
 
 	return v, nil
@@ -44,6 +49,9 @@ func (m *InMemoryDB) NewBatch() BatchWriter {
 		store: make(map[string][]byte),
 		db:    m,
 	}
+}
+
+func (m *InMemoryDB) Close() {
 }
 
 type InMemoryBatch struct {
