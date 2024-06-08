@@ -1,10 +1,15 @@
 package verkletrie
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/0chain/common/core/verkletrie/database"
+	"github.com/0chain/common/core/verkletrie/database/rocksdb"
 	"github.com/ethereum/go-verkle"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,9 +27,49 @@ var keys = [][]byte{
 	HexToBytes("7e8c3b2f6a1d5e0c8b29f4a713d6e5c8f7a2b1d0e9c5a4b8f36e7d12c8b0a4f9"),
 }
 
+var mainStorageLargeValue = []byte{}
+
+func init() {
+	mainStorageLargeValue = make([]byte, 0, 128)
+	for i := 0; i < 128; i++ {
+		mainStorageLargeValue = append(mainStorageLargeValue, keys[0][:]...)
+	}
+}
+
+func testNewRocksDB(t testing.TB) (db database.DB, clean func()) {
+	dbPath := fmt.Sprintf("./testdata/%s_%d.db", t.Name(), time.Now().Nanosecond())
+	// fmt.Println("dbPath:", dbPath)
+	var err error
+	db, err = rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, func() {
+		db.Close()
+		if err := os.RemoveAll(dbPath); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// dbType can be "inmemory" or "rocksdb"
+var dbType = "rocksdb"
+
+func testPrepareDB(t testing.TB) (database.DB, func()) {
+	switch {
+	case dbType == "inmemory":
+		return database.NewInMemoryVerkleDB(), func() {}
+	case dbType == "rocksdb":
+		return testNewRocksDB(t)
+	}
+	return nil, nil
+}
+
 func TestVerkleTrie_Insert(t *testing.T) {
-	// Createverkletrie
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 
 	// Insert some data
 	err := vt.Insert(keys[0], []byte("value1"))
@@ -43,8 +88,10 @@ func TestVerkleTrie_Insert(t *testing.T) {
 }
 
 func TestVerkleTrie_Delete(t *testing.T) {
-	// Createverkletrie
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 
 	// Insert some data
 	err := vt.Insert(keys[0], []byte("value1"))
@@ -66,9 +113,10 @@ func TestVerkleTrie_Delete(t *testing.T) {
 	assert.Equal(t, []byte("value2"), value)
 }
 
-func TestVerkleTrie_Commit(t *testing.T) {
-	// Createverkletrie
-	db := NewInMemoryVerkleDB()
+func TestVerkleTrie_Flush(t *testing.T) {
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
 	vt := New("alloc_1", db)
 
 	err := vt.Insert(keys[0], keys[0])
@@ -94,8 +142,10 @@ func TestVerkleTrie_Commit(t *testing.T) {
 }
 
 func TestTreeKeyStorage(t *testing.T) {
-	// Createverkletrie
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 
 	filepathHash := keys[0]
 	rootHash := keys[1]
@@ -124,7 +174,10 @@ func TestTreeKeyStorage(t *testing.T) {
 }
 
 func TestTreeStorageLargeData(t *testing.T) {
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 	filepathHash := keys[0]
 
 	mainStoreChunkNum := 1000
@@ -148,7 +201,10 @@ func TestTreeStorageLargeData(t *testing.T) {
 }
 
 func TestInsertsNodeChanges(t *testing.T) {
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:7]); i++ {
 		err := vt.InsertValue(keys[i], keys[i])
 		assert.Nil(t, err)
@@ -161,7 +217,10 @@ func TestInsertsNodeChanges(t *testing.T) {
 }
 
 func TestProof(t *testing.T) {
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
 		err := vt.Insert(keys[i], keys[i])
 		assert.Nil(t, err)
@@ -192,7 +251,10 @@ func TestProof(t *testing.T) {
 }
 
 func TestProofNotExistKey(t *testing.T) {
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
 		err := vt.Insert(keys[i], keys[i])
 		assert.Nil(t, err)
@@ -205,7 +267,6 @@ func TestProofNotExistKey(t *testing.T) {
 		assert.Nil(t, err)
 
 		err = VerifyProofAbsence(dp, sdiff, root[:], keys[3:])
-		fmt.Println("err:", err)
 		assert.Nil(t, err)
 	})
 
@@ -218,8 +279,11 @@ func TestProofNotExistKey(t *testing.T) {
 	})
 }
 
-func TestFileRootHash(t *testing.T) {
-	vt := New("alloc_1", NewInMemoryVerkleDB())
+func TestDeleteFileRootHash(t *testing.T) {
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
 		err := vt.InsertFileRootHash(keys[i], keys[i])
 		assert.Nil(t, err)
@@ -231,7 +295,6 @@ func TestFileRootHash(t *testing.T) {
 	vt.Commit()
 
 	// Verify that the root hash of the file is deleted
-	// v, err := vt.(GetTreeKeyForFileHash(keys[2]))
 	v2, err := vt.GetFileRootHash(keys[2])
 	assert.Nil(t, err)
 	assert.Nil(t, v2)
@@ -239,5 +302,62 @@ func TestFileRootHash(t *testing.T) {
 	v1, err := vt.GetFileRootHash(keys[1])
 	assert.Nil(t, err)
 	assert.NotNil(t, v1)
-	fmt.Printf("%x\n", v1)
+}
+
+func TestDeleteValue(t *testing.T) {
+	// t.Parallel()
+	db, clean := testPrepareDB(t)
+	defer clean()
+	vt := New("alloc_1", db)
+	for i := 0; i < len(keys[:3]); i++ {
+		err := vt.InsertValue(keys[i], mainStorageLargeValue[:])
+		assert.Nil(t, err)
+	}
+
+	vt.Commit()
+
+	vb, err := vt.GetValue(keys[0])
+	assert.Nil(t, err)
+	assert.Equal(t, mainStorageLargeValue[:], vb)
+
+	err = vt.DeleteValue(keys[0])
+	assert.Nil(t, err)
+
+	// verify that the value is deleted
+	vv, err := vt.GetValue(keys[0])
+	assert.Nil(t, err)
+	assert.Nil(t, vv)
+
+	// assert that all related nodes are deleted
+	storageSizeKey := GetTreeKeyForStorageSize(keys[0])
+	sv, err := vt.GetWithHashedKey(storageSizeKey)
+	assert.Nil(t, err)
+	assert.Nil(t, sv)
+
+	// assert that all chunks are deleted
+	size := len(mainStorageLargeValue)
+	chunkNum := size / int(ChunkSize.Uint64())
+	if size%int(ChunkSize.Uint64()) > 0 {
+		chunkNum++
+	}
+	for i := 0; i < chunkNum; i++ {
+		chunkKey := GetTreeKeyForStorageSlot(keys[0], uint64(i))
+		cv, err := vt.GetWithHashedKey(chunkKey)
+		assert.Nil(t, err)
+		assert.Nil(t, cv)
+	}
+}
+
+func BenchmarkInsert(b *testing.B) {
+	db, clean := testPrepareDB(b)
+	defer clean()
+	vt := New("alloc_1", db)
+	for i := 0; i < b.N; i++ {
+		randBytes := make([]byte, 32)
+		rand.Read(randBytes)
+		key := randBytes[:]
+
+		err := vt.InsertValue(key, key[:])
+		assert.Nil(b, err)
+	}
 }
