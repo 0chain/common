@@ -95,8 +95,10 @@ func (r *rocksDB) Get(key []byte) ([]byte, error) {
 		return nil, database.ErrMissingNode
 	}
 
+	ret := make([]byte, len(data))
+	copy(ret, data)
 	defer slice.Free()
-	return data, nil
+	return ret, nil
 }
 
 func (r *rocksDB) NewBatch() database.BatchWriter {

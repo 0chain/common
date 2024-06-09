@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/0chain/common/core/verkletrie/database/rocksdb"
 	"github.com/ethereum/go-verkle"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var keys = [][]byte{
@@ -27,18 +29,76 @@ var keys = [][]byte{
 	HexToBytes("7e8c3b2f6a1d5e0c8b29f4a713d6e5c8f7a2b1d0e9c5a4b8f36e7d12c8b0a4f9"),
 }
 
-var mainStorageLargeValue = []byte{}
+var (
+	mainStorageLargeValue = []byte{}
+	once                  sync.Once
+	// dbType can be "inmemory" or "rocksdb"
+	// var dbType = "rocksdb"
+	dbType = "rocksdb"
+	// dbType = "inmemory"
+)
 
 func init() {
 	mainStorageLargeValue = make([]byte, 0, 128)
 	for i := 0; i < 128; i++ {
 		mainStorageLargeValue = append(mainStorageLargeValue, keys[0][:]...)
 	}
+
+	if dbType == "rocksdb" {
+		_, err := os.Stat("testdata/bench.db")
+		if !os.IsNotExist(err) {
+			return
+		}
+
+		// generate the ./testdata/bench.db if it's the first time to run the benchmark
+		testNewBenchRocksDB("bench")
+	}
+}
+
+func testPrepareDB(t testing.TB) (database.DB, func()) {
+	switch {
+	case dbType == "inmemory":
+		return database.NewInMemoryVerkleDB(), func() {}
+	case dbType == "rocksdb":
+		return testNewRocksDB(t)
+	}
+	return nil, nil
+}
+
+func testNewBenchRocksDB(name string) {
+	dbPath := fmt.Sprintf("./testdata/%s.db", name)
+	fmt.Println("dbPath:", dbPath)
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	vt := New("alloc_1", db)
+	for i := 0; i < 1000000; i++ {
+		randBytes := make([]byte, 32)
+		rand.Read(randBytes)
+		key := randBytes[:]
+		err := vt.InsertValue(key[:], key[:])
+		if err != nil {
+			panic(err)
+		}
+	}
+	vt.Flush()
+}
+
+func getBenchRocksDB(name string) database.DB {
+	dbPath := fmt.Sprintf("./testdata/%s.db", name)
+	fmt.Println("dbPath:", dbPath)
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+
+	return db
 }
 
 func testNewRocksDB(t testing.TB) (db database.DB, clean func()) {
 	dbPath := fmt.Sprintf("./testdata/%s_%d.db", t.Name(), time.Now().Nanosecond())
-	// fmt.Println("dbPath:", dbPath)
 	var err error
 	db, err = rocksdb.NewRocksDB(dbPath)
 	if err != nil {
@@ -50,19 +110,6 @@ func testNewRocksDB(t testing.TB) (db database.DB, clean func()) {
 			t.Fatal(err)
 		}
 	}
-}
-
-// dbType can be "inmemory" or "rocksdb"
-var dbType = "rocksdb"
-
-func testPrepareDB(t testing.TB) (database.DB, func()) {
-	switch {
-	case dbType == "inmemory":
-		return database.NewInMemoryVerkleDB(), func() {}
-	case dbType == "rocksdb":
-		return testNewRocksDB(t)
-	}
-	return nil, nil
 }
 
 func TestVerkleTrie_Insert(t *testing.T) {
@@ -121,11 +168,14 @@ func TestVerkleTrie_Flush(t *testing.T) {
 
 	err := vt.Insert(keys[0], keys[0])
 	assert.Nil(t, err)
+
 	err = vt.Insert(keys[1], keys[1])
 	assert.Nil(t, err)
 
 	// Commit the tree
 	vt.Flush()
+	fmt.Println("flush count:", flushCount)
+	oldFlushCount := flushCount
 
 	// fmt.Println(string(verkle.ToDot(vt.root)))
 
@@ -139,6 +189,11 @@ func TestVerkleTrie_Flush(t *testing.T) {
 	value, err = newVt.GetWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, keys[1], value)
+
+	err = newVt.Insert(keys[2], keys[2])
+	assert.Nil(t, err)
+	newVt.Flush()
+	fmt.Println("new flush count:", flushCount-oldFlushCount)
 }
 
 func TestTreeKeyStorage(t *testing.T) {
@@ -186,13 +241,20 @@ func TestTreeStorageLargeData(t *testing.T) {
 	values := make([]byte, 0, totalChunkNum*int(ChunkSize.Uint64()))
 	// test to use out all header spaces for storage
 	for i := 0; i < totalChunkNum; i++ {
-		values = append(values, keys[0]...)
+		values = append(values, keys[0][:]...)
 	}
 
 	err := vt.InsertValue(filepathHash, values)
 	assert.Nil(t, err)
 
+	vv, err := vt.GetValue(filepathHash)
+	assert.Nil(t, err)
+	require.Equal(t, values, vv)
+
 	vt.Flush()
+
+	vt = New("alloc_1", db)
+	fmt.Println("-----------------------------------")
 
 	v, err := vt.GetValue(filepathHash)
 	assert.Nil(t, err)
@@ -211,9 +273,12 @@ func TestInsertsNodeChanges(t *testing.T) {
 	}
 
 	vt.Flush()
+	oldC := flushCount
+	fmt.Println("flush count:", flushCount)
 
 	vt.Insert(keys[7], keys[7])
 	vt.Flush()
+	fmt.Println("new flush count:", flushCount-oldC)
 }
 
 func TestProof(t *testing.T) {
@@ -349,15 +414,23 @@ func TestDeleteValue(t *testing.T) {
 }
 
 func BenchmarkInsert(b *testing.B) {
-	db, clean := testPrepareDB(b)
-	defer clean()
-	vt := New("alloc_1", db)
-	for i := 0; i < b.N; i++ {
-		randBytes := make([]byte, 32)
-		rand.Read(randBytes)
-		key := randBytes[:]
+	db := getBenchRocksDB("bench")
+	defer db.Close()
 
-		err := vt.InsertValue(key, key[:])
-		assert.Nil(b, err)
+	vt := New("alloc_1", db)
+	fmt.Printf("%x\n", vt.Hash())
+	for i := 0; i < b.N; i++ {
+		b.Run("insert", func(t *testing.B) {
+			fc := flushCount
+			randBytes := make([]byte, 32)
+			rand.Read(randBytes)
+			key := randBytes[:]
+
+			err := vt.InsertValue(key, mainStorageLargeValue)
+			assert.Nil(b, err)
+			vt.Flush()
+			fmt.Printf("%x\n", vt.Hash())
+			fmt.Println("flush count:", flushCount-fc)
+		})
 	}
 }

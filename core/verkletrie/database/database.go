@@ -1,6 +1,8 @@
 package database
 
-import "errors"
+import (
+	"errors"
+)
 
 const IdealBatchSize = 100 * 1024
 

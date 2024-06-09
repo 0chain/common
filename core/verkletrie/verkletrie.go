@@ -3,6 +3,7 @@ package verkletrie
 import (
 	"encoding/hex"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 
@@ -84,7 +85,8 @@ func (m *VerkleTrie) InsertFileRootHash(filepathHash []byte, rootHash []byte) er
 func (m *VerkleTrie) InsertValue(filepathHash []byte, data []byte) error {
 	// insert the value size
 	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
-	if err := m.Insert(storageSizeKey, uint256.NewInt(uint64(len(data))).Bytes()); err != nil {
+	vb := uint256.NewInt(uint64(len(data))).Bytes32()
+	if err := m.Insert(storageSizeKey, vb[:]); err != nil {
 		return errors.Wrap(err, "insert storage size")
 	}
 
@@ -201,41 +203,28 @@ func (m *VerkleTrie) Commit() Hash {
 	return m.root.Commit().Bytes()
 }
 
-func (m *VerkleTrie) Flush() (Hash, error) {
-	root, ok := m.root.(*verkle.InternalNode)
-	if !ok {
-		return Hash{}, errors.New("unexpected root node type")
-	}
+var flushCount int32
 
-	// TODO: optimize the BatchSerialize to return the modified nodes only to avoid wasting resources
-	nodes, err := root.BatchSerialize()
+func (m *VerkleTrie) flushFunc(p []byte, node verkle.VerkleNode) {
+	nodeBytes, err := node.Serialize()
 	if err != nil {
-		return Hash{}, fmt.Errorf("serializing tree nodes: %s", err)
+		panic(fmt.Errorf("serializing node: %s", err))
 	}
 
-	batch := m.db.NewBatch()
 	rootKeyLen := len(m.rootKey)
 	path := make([]byte, 0, rootKeyLen+32)
 	path = append(path, []byte(m.rootKey)...)
-	for _, node := range nodes {
-		path := append(path[:rootKeyLen], node.Path...)
-		if err := batch.Put(path, node.SerializedBytes); err != nil {
-			return Hash{}, fmt.Errorf("put node to disk: %s", err)
-		}
-
-		if batch.Size() >= database.IdealBatchSize {
-			if err := batch.Write(); err != nil {
-				return Hash{}, fmt.Errorf("batch write error: %s", err)
-			}
-			batch.Reset()
-		}
+	path = append(path[:rootKeyLen], p...)
+	if err := m.db.Set(path, nodeBytes[:]); err != nil {
+		panic(fmt.Errorf("put node to disk: %s", err))
 	}
 
-	if err := batch.Write(); err != nil {
-		return Hash{}, fmt.Errorf("batch write error: %s", err)
-	}
+	atomic.AddInt32(&flushCount, 1)
+}
 
-	return m.Hash(), nil
+func (m *VerkleTrie) Flush() {
+	m.root.Commit()
+	m.root.(*verkle.InternalNode).Flush(m.flushFunc)
 }
 
 type Keylist [][]byte
