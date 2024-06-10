@@ -44,25 +44,6 @@ var benchKeys = [][]byte{
 	HexToBytes("357c0778187bce682a78331d7e8496838c241345635327b53335ea1dfa69e938"),
 }
 
-var largeValueKeys = [][]byte{
-	HexToBytes("028ed2302f902c594b28f74425c08fded2b672dbb0bf08a956b3f627a2d8e70b"),
-	HexToBytes("21237589528607274331f22b2c6bfcb1f9e99bf60ea143e0e695e80d1904aac5"),
-	HexToBytes("0f7d72c4d6669b8cbca8f707737e52c25445d172674f2ee0a953682ed8e71e2e"),
-}
-
-var smallValueKeys = [][]byte{
-	HexToBytes("2a882d8ecd0d2bd082f5af7580b39bc2706fed7660de722d07a7e404af9bee16"),
-	HexToBytes("a208e5bbd4a3d688c7d6a7b7a57072766c45445dea14f071e5d80bfacb6ef82c"),
-	HexToBytes("f29ecd1e2a0f7e9e78ddcc8935dc92158eba7ea1567ed9b34704cf832f6d6ad0"),
-	HexToBytes("e4b23f4ee79f1ed1d7728f4368b8531ed5f7b2dd1bd641e31fa8156b8ec2918b"),
-	HexToBytes("81d1dbe9afc1980369171c764bd7deceb9bdee528c7874a066385dd9471de822"),
-	HexToBytes("297e48e59a4d5bf539187d88083acdb6a1e4a93b62dc8a31e316acfaff667d46"),
-	HexToBytes("207b52e4ca064b096f0dfce3b48da9c9220c19c91b92b1cd18337fce832ec7a4"),
-	HexToBytes("057114b0feafe9941f60414ab7c493d93c8f8bf0a2b5e6cf4b825b8cc5011e9c"),
-	HexToBytes("61952ae9fa0ee500e44b4444a96fd45e33221e98cf35e06149961d69c0f059d0"),
-	HexToBytes("02c284fb8161b5ff62751e844618a82a9097179dfadb3b54af50801460aa3fb2"),
-}
-
 var (
 	mainStorageLargeValue = []byte{}
 	once                  sync.Once
@@ -83,14 +64,12 @@ func TestMain(m *testing.M) {
 		mainStorageLargeValue = append(mainStorageLargeValue, keys[0][:]...)
 	}
 
-	fmt.Println("gen:", generate)
-
 	if generate && dbType == "rocksdb" {
 		// generate the ./testdata/bench.db if it's the first time to run the benchmark
-		testNewBenchRocksDB()
-		testNewBenchRocksDBLargeValue()
-		testNewBenchRocksDB1KNodes()
-		testNewBenchRocksDB1KLargeNodes()
+		makeBenchRocksDB1MSmall()
+		makeBenchRocksDBLargeValue()
+		makeBenchRocksDB1KNodes()
+		makeBenchRocksDB1KLargeNodes()
 	}
 
 	os.Exit(m.Run())
@@ -101,12 +80,12 @@ func testPrepareDB(t testing.TB) (database.DB, func()) {
 	case dbType == "inmemory":
 		return database.NewInMemoryVerkleDB(), func() {}
 	case dbType == "rocksdb":
-		return testNewRocksDB(t)
+		return makeRocksDB(t)
 	}
 	return nil, nil
 }
 
-func testNewBenchRocksDB() {
+func makeBenchRocksDB1MSmall() {
 	dbPath := "./testdata/bench.db"
 	fmt.Println("dbPath:", dbPath)
 	db, err := rocksdb.NewRocksDB(dbPath)
@@ -133,7 +112,7 @@ func testNewBenchRocksDB() {
 	vt.Flush()
 }
 
-func testNewBenchRocksDBLargeValue() {
+func makeBenchRocksDBLargeValue() {
 	dbPath := fmt.Sprintf("./testdata/bench_large.db")
 	db, err := rocksdb.NewRocksDB(dbPath)
 	if err != nil {
@@ -157,7 +136,7 @@ func testNewBenchRocksDBLargeValue() {
 	}
 	vt.Flush()
 }
-func testNewBenchRocksDB1KNodes() {
+func makeBenchRocksDB1KNodes() {
 	dbPath := fmt.Sprintf("./testdata/bench_1k.db")
 	db, err := rocksdb.NewRocksDB(dbPath)
 	if err != nil {
@@ -182,7 +161,7 @@ func testNewBenchRocksDB1KNodes() {
 	vt.Flush()
 }
 
-func testNewBenchRocksDB1KLargeNodes() {
+func makeBenchRocksDB1KLargeNodes() {
 	dbPath := fmt.Sprintf("./testdata/bench_1k_large.db")
 	db, err := rocksdb.NewRocksDB(dbPath)
 	if err != nil {
@@ -244,7 +223,7 @@ func getBenchRocksDB1K() database.DB {
 	return db
 }
 
-func testNewRocksDB(t testing.TB) (db database.DB, clean func()) {
+func makeRocksDB(t testing.TB) (db database.DB, clean func()) {
 	dbPath := fmt.Sprintf("./testdata/%s_%d.db", t.Name(), time.Now().Nanosecond())
 	dbDir := filepath.Dir(dbPath)
 	os.MkdirAll(dbDir, os.ModePerm)
