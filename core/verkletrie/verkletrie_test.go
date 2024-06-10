@@ -694,6 +694,40 @@ func BenchmarkVerifyProof(b *testing.B) {
 	}
 }
 
+func TestFileMeta(t *testing.T) {
+	db, clean := testPrepareDB(t)
+	defer clean()
+
+	vt := New("alloc_1", db)
+
+	// insert
+	err := vt.InsertFileMeta(keys[0], keys[1], keys[2])
+	assert.Nil(t, err)
+	vt.Flush()
+
+	// get file root hash
+	rootHash, err := vt.GetFileMetaRootHash(keys[0])
+	assert.Nil(t, err)
+	assert.Equal(t, keys[1], rootHash)
+
+	// get file meta
+	meta, err := vt.GetFileMeta(keys[0])
+	assert.Nil(t, err)
+	assert.Equal(t, keys[2], meta)
+
+	// delete file meta
+	err = vt.DeleteFileMeta(keys[0])
+	assert.Nil(t, err)
+
+	rootHash, err = vt.getFileRootHash(keys[0])
+	assert.Nil(t, err)
+	assert.Nil(t, rootHash)
+
+	meta, err = vt.getValue(keys[0])
+	assert.Nil(t, err)
+	assert.Nil(t, meta)
+}
+
 func TestMakeProofFileMeta(t *testing.T) {
 	db, clean := testPrepareDB(t)
 	defer clean()
