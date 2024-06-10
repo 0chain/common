@@ -728,7 +728,7 @@ func TestFileMeta(t *testing.T) {
 	assert.Nil(t, meta)
 }
 
-func TestMakeProofFileMeta(t *testing.T) {
+func TestProofFileMeta(t *testing.T) {
 	db, clean := testPrepareDB(t)
 	defer clean()
 
