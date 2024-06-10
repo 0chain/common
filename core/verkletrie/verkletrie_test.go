@@ -3,8 +3,10 @@ package verkletrie
 import (
 	"crypto/rand"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +31,38 @@ var keys = [][]byte{
 	HexToBytes("7e8c3b2f6a1d5e0c8b29f4a713d6e5c8f7a2b1d0e9c5a4b8f36e7d12c8b0a4f9"),
 }
 
+var benchKeys = [][]byte{
+	HexToBytes("de34efbdcb37c44397e5213f295ce973edfd6e3ebd586ff4be20dd308d875635"),
+	HexToBytes("9d79cd3523ad43ca5849a3c93c9aeb2a2a1e09e7b129a24583eb79ee914ca685"),
+	HexToBytes("8e0b76196671d514b7b26e5478e459c34339a965ad168424184b33e11c7503c3"),
+	HexToBytes("a2e17cc6bedd7c8079a25ef6f7ee2f1da3f773ae8d993e7836b2d22cd1697dfc"),
+	HexToBytes("dc52d23c1940f342f228aa307cb436bde167a68fca3d005a9cbfca8648c23a63"),
+	HexToBytes("a262530eb4e165305ce7e70f5480a9f6f74d18b67467c3a6ce5259a2e5f79c21"),
+	HexToBytes("28d75ae78e0ee004ec8ac7691129916d5aac021b80b247712b4816cb5b2245ed"),
+	HexToBytes("887658a80146b0cd5fd87c3c5e01699432025425cc70be24a134331484db8bd2"),
+	HexToBytes("62046f78350e648a3dab7747222b9e4822f44800432ef83b929c62748bcd3212"),
+	HexToBytes("357c0778187bce682a78331d7e8496838c241345635327b53335ea1dfa69e938"),
+}
+
+var largeValueKeys = [][]byte{
+	HexToBytes("028ed2302f902c594b28f74425c08fded2b672dbb0bf08a956b3f627a2d8e70b"),
+	HexToBytes("21237589528607274331f22b2c6bfcb1f9e99bf60ea143e0e695e80d1904aac5"),
+	HexToBytes("0f7d72c4d6669b8cbca8f707737e52c25445d172674f2ee0a953682ed8e71e2e"),
+}
+
+var smallValueKeys = [][]byte{
+	HexToBytes("2a882d8ecd0d2bd082f5af7580b39bc2706fed7660de722d07a7e404af9bee16"),
+	HexToBytes("a208e5bbd4a3d688c7d6a7b7a57072766c45445dea14f071e5d80bfacb6ef82c"),
+	HexToBytes("f29ecd1e2a0f7e9e78ddcc8935dc92158eba7ea1567ed9b34704cf832f6d6ad0"),
+	HexToBytes("e4b23f4ee79f1ed1d7728f4368b8531ed5f7b2dd1bd641e31fa8156b8ec2918b"),
+	HexToBytes("81d1dbe9afc1980369171c764bd7deceb9bdee528c7874a066385dd9471de822"),
+	HexToBytes("297e48e59a4d5bf539187d88083acdb6a1e4a93b62dc8a31e316acfaff667d46"),
+	HexToBytes("207b52e4ca064b096f0dfce3b48da9c9220c19c91b92b1cd18337fce832ec7a4"),
+	HexToBytes("057114b0feafe9941f60414ab7c493d93c8f8bf0a2b5e6cf4b825b8cc5011e9c"),
+	HexToBytes("61952ae9fa0ee500e44b4444a96fd45e33221e98cf35e06149961d69c0f059d0"),
+	HexToBytes("02c284fb8161b5ff62751e844618a82a9097179dfadb3b54af50801460aa3fb2"),
+}
+
 var (
 	mainStorageLargeValue = []byte{}
 	once                  sync.Once
@@ -38,21 +72,28 @@ var (
 	// dbType = "inmemory"
 )
 
-func init() {
+var generate bool
+
+func TestMain(m *testing.M) {
+	flag.BoolVar(&generate, "gen", false, "generate test data")
+	flag.Parse()
+
 	mainStorageLargeValue = make([]byte, 0, 128)
 	for i := 0; i < 128; i++ {
 		mainStorageLargeValue = append(mainStorageLargeValue, keys[0][:]...)
 	}
 
-	if dbType == "rocksdb" {
-		_, err := os.Stat("testdata/bench.db")
-		if !os.IsNotExist(err) {
-			return
-		}
+	fmt.Println("gen:", generate)
 
+	if generate && dbType == "rocksdb" {
 		// generate the ./testdata/bench.db if it's the first time to run the benchmark
-		testNewBenchRocksDB("bench")
+		testNewBenchRocksDB()
+		testNewBenchRocksDBLargeValue()
+		testNewBenchRocksDB1KNodes()
+		testNewBenchRocksDB1KLargeNodes()
 	}
+
+	os.Exit(m.Run())
 }
 
 func testPrepareDB(t testing.TB) (database.DB, func()) {
@@ -65,8 +106,8 @@ func testPrepareDB(t testing.TB) (database.DB, func()) {
 	return nil, nil
 }
 
-func testNewBenchRocksDB(name string) {
-	dbPath := fmt.Sprintf("./testdata/%s.db", name)
+func testNewBenchRocksDB() {
+	dbPath := "./testdata/bench.db"
 	fmt.Println("dbPath:", dbPath)
 	db, err := rocksdb.NewRocksDB(dbPath)
 	if err != nil {
@@ -75,9 +116,15 @@ func testNewBenchRocksDB(name string) {
 	defer db.Close()
 	vt := New("alloc_1", db)
 	for i := 0; i < 1000000; i++ {
-		randBytes := make([]byte, 32)
-		rand.Read(randBytes)
-		key := randBytes[:]
+		var key []byte
+		if i < len(benchKeys) {
+			key = benchKeys[i]
+		} else {
+			randBytes := make([]byte, 32)
+			rand.Read(randBytes)
+			key = randBytes[:]
+		}
+		// fmt.Printf("%x\n", key)
 		err := vt.InsertValue(key[:], key[:])
 		if err != nil {
 			panic(err)
@@ -86,9 +133,91 @@ func testNewBenchRocksDB(name string) {
 	vt.Flush()
 }
 
-func getBenchRocksDB(name string) database.DB {
-	dbPath := fmt.Sprintf("./testdata/%s.db", name)
-	fmt.Println("dbPath:", dbPath)
+func testNewBenchRocksDBLargeValue() {
+	dbPath := fmt.Sprintf("./testdata/bench_large.db")
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	vt := New("alloc_1", db)
+	for i := 0; i < 10000; i++ {
+		key := []byte{}
+		if i < len(benchKeys) {
+			key = benchKeys[i]
+		} else {
+			randBytes := make([]byte, 32)
+			rand.Read(randBytes)
+			key = randBytes[:]
+		}
+		err := vt.InsertValue(key[:], mainStorageLargeValue)
+		if err != nil {
+			panic(err)
+		}
+	}
+	vt.Flush()
+}
+func testNewBenchRocksDB1KNodes() {
+	dbPath := fmt.Sprintf("./testdata/bench_1k.db")
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	vt := New("alloc_1", db)
+	for i := 0; i < 1000; i++ {
+		key := []byte{}
+		if i < len(benchKeys) {
+			key = benchKeys[i]
+		} else {
+			randBytes := make([]byte, 32)
+			rand.Read(randBytes)
+			key = randBytes[:]
+		}
+		err := vt.InsertValue(key[:], mainStorageLargeValue)
+		if err != nil {
+			panic(err)
+		}
+	}
+	vt.Flush()
+}
+
+func testNewBenchRocksDB1KLargeNodes() {
+	dbPath := fmt.Sprintf("./testdata/bench_1k_large.db")
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	vt := New("alloc_1", db)
+	for i := 0; i < 1000; i++ {
+		key := []byte{}
+		if i < len(benchKeys) {
+			key = benchKeys[i]
+		} else {
+			randBytes := make([]byte, 32)
+			rand.Read(randBytes)
+			key = randBytes[:]
+		}
+		err := vt.InsertValue(key[:], mainStorageLargeValue)
+		if err != nil {
+			panic(err)
+		}
+	}
+	vt.Flush()
+}
+
+func getBenchRocksDB1KLargeDB() database.DB {
+	dbPath := "./testdata/bench_1k_large.db"
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
+func getBenchRocksDB1MSmall() database.DB {
+	dbPath := "./testdata/bench.db"
 	db, err := rocksdb.NewRocksDB(dbPath)
 	if err != nil {
 		panic(err)
@@ -97,8 +226,29 @@ func getBenchRocksDB(name string) database.DB {
 	return db
 }
 
+func getBenchRocksDBLarge() database.DB {
+	dbPath := "./testdata/bench_large.db"
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
+func getBenchRocksDB1K() database.DB {
+	dbPath := "./testdata/bench_1k.db"
+	db, err := rocksdb.NewRocksDB(dbPath)
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
 func testNewRocksDB(t testing.TB) (db database.DB, clean func()) {
 	dbPath := fmt.Sprintf("./testdata/%s_%d.db", t.Name(), time.Now().Nanosecond())
+	dbDir := filepath.Dir(dbPath)
+	os.MkdirAll(dbDir, os.ModePerm)
+
 	var err error
 	db, err = rocksdb.NewRocksDB(dbPath)
 	if err != nil {
@@ -413,24 +563,154 @@ func TestDeleteValue(t *testing.T) {
 	}
 }
 
-func BenchmarkInsert(b *testing.B) {
-	db := getBenchRocksDB("bench")
+func BenchmarkInsertSmallValue(b *testing.B) {
+	db := getBenchRocksDB1MSmall()
+	// db := getBenchRocksDBLarge()
 	defer db.Close()
 
 	vt := New("alloc_1", db)
-	fmt.Printf("%x\n", vt.Hash())
 	for i := 0; i < b.N; i++ {
-		b.Run("insert", func(t *testing.B) {
-			fc := flushCount
-			randBytes := make([]byte, 32)
-			rand.Read(randBytes)
-			key := randBytes[:]
+		randBytes := make([]byte, 32)
+		rand.Read(randBytes)
+		key := randBytes[:]
 
-			err := vt.InsertValue(key, mainStorageLargeValue)
-			assert.Nil(b, err)
-			vt.Flush()
-			fmt.Printf("%x\n", vt.Hash())
-			fmt.Println("flush count:", flushCount-fc)
-		})
+		err := vt.InsertValue(key, key[:])
+		assert.Nil(b, err)
+		vt.Flush()
+	}
+}
+
+func BenchmarkInsertLargeValue(b *testing.B) {
+	db := getBenchRocksDBLarge()
+	defer db.Close()
+
+	vt := New("alloc_1", db)
+	for i := 0; i < b.N; i++ {
+		randBytes := make([]byte, 32)
+		rand.Read(randBytes)
+		key := randBytes[:]
+
+		err := vt.InsertValue(key, mainStorageLargeValue)
+		assert.Nil(b, err)
+		vt.Flush()
+	}
+}
+
+// func BenchmarkMakeProof2(b *testing.B) {
+// 	db := getBenchRocksDB()
+// 	defer db.Close()
+
+// 	vt := New("alloc_1", db)
+// 	for i := 0; i < b.N; i++ {
+// 		// randBytes := make([]byte, 32)
+// 		// rand.Read(randBytes)
+// 		key := smallValueKeys[i%len(smallValueKeys)]
+// 		// err := vt.InsertValue(key, key[:])
+// 		// assert.Nil(b, err)
+// 		// vt.Flush()
+// 		MakeProof(vt, Keylist{key})
+// 	}
+// }
+
+// var largeValue1KNodeKeys = [][]byte{
+// 	HexToBytes("cdb8b26ac25ececa8bd26aa67a6dbb11af4a75b303fb17bf644e08ba4276ea07"),
+// 	HexToBytes("dc5a39e1e3494e87e06a9647b3e0c33657226410a06a2d61c530c68e2cbbe1ab"),
+// 	HexToBytes("199ffb5ce1205c8a60e1b905c7730154d2812113224b9321a9362da61745ee73"),
+// 	HexToBytes("ceb9d23653fd5163ac8409ce8878e0c82e46ee4d281f0e23b96e9f89ed5091d5"),
+// 	HexToBytes("bfb6896cbbb07b273b6616a5ba9c4928e17e4bf812b7804a1c93baa0ca4f48bf"),
+// 	HexToBytes("3e16ee78e18c62c7c9fb52535e4fe10958c519b549039a62621cf9f32cea203d"),
+// 	HexToBytes("aeac233ad49984e3c96d53caf0e0f4b760a15bab01c21a233e4f904578a096f5"),
+// 	HexToBytes("88eb70d652ef57e7f873e4b03f38a2144be905ae90ff54111b2ac62e7b93829a"),
+// 	HexToBytes("c653552478a06c7075e21f64f166fc4a687499843bdc9e521fa106a5bb012d15"),
+// 	HexToBytes("37d3367def3a1b8d75237c7099d44ff38a6b1a70250ac4fde7dc6f0378c08856"),
+// }
+
+func BenchmarkMakeProof(b *testing.B) {
+	b.Run("1k small nodes", func(b *testing.B) {
+		db := getBenchRocksDB1K()
+		// db := getBenchRocksDB1KLargeDB()
+		// db := getBenchRocksDBLarge()
+		defer db.Close()
+		// db, clean := testPrepareDB(b)
+		// defer clean()
+		vt := New("alloc_1", db)
+		for i := 0; i < b.N; i++ {
+			key := benchKeys[i%len(benchKeys)]
+			MakeProof(vt, Keylist{key})
+		}
+	})
+
+	b.Run("1k large nodes", func(b *testing.B) {
+		db := getBenchRocksDB1KLargeDB()
+		defer db.Close()
+		vt := New("alloc_1", db)
+		for i := 0; i < b.N; i++ {
+			key := benchKeys[i%len(benchKeys)]
+			MakeProof(vt, Keylist{key})
+		}
+	})
+
+	b.Run("10k large nodes", func(b *testing.B) {
+		db := getBenchRocksDBLarge()
+		defer db.Close()
+		vt := New("alloc_1", db)
+		for i := 0; i < b.N; i++ {
+			key := benchKeys[i%len(benchKeys)]
+			MakeProof(vt, Keylist{key})
+		}
+	})
+
+	b.Run("1M small nodes", func(b *testing.B) {
+		db := getBenchRocksDB1MSmall()
+		defer db.Close()
+		vt := New("alloc_1", db)
+		for i := 0; i < b.N; i++ {
+			key := benchKeys[i%len(benchKeys)]
+			MakeProof(vt, Keylist{key})
+		}
+
+	})
+
+	b.Run("2 small nodes", func(b *testing.B) {
+		db, clean := testPrepareDB(b)
+		defer clean()
+		vt := New("alloc_1", db)
+		// Insert some data
+		err := vt.Insert(keys[0], []byte("value1"))
+		assert.Nil(b, err)
+		err = vt.Insert(keys[1], []byte("value2"))
+		assert.Nil(b, err)
+		vt.Commit()
+
+		for i := 0; i < b.N; i++ {
+			key := keys[i%2]
+			MakeProof(vt, Keylist{key})
+		}
+	})
+}
+
+func BenchmarkVerifyProof(b *testing.B) {
+	db, clean := testPrepareDB(b)
+	defer clean()
+
+	vt := New("alloc_1", db)
+	for i := 0; i < len(keys); i++ {
+		err := vt.InsertFileRootHash(keys[i], keys[i])
+		assert.Nil(b, err)
+	}
+
+	vt.Flush()
+	root := vt.Hash()
+
+	key := GetTreeKeyForFileHash(keys[0])
+	vp, sd, err := MakeProof(vt, Keylist{key})
+	assert.Nil(b, err)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		err = VerifyProofPresence(vp, sd, root[:], Keylist{key})
+		assert.Nil(b, err)
 	}
 }
