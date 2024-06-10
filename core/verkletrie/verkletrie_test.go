@@ -104,7 +104,7 @@ func makeBenchRocksDB1MSmall() {
 			key = randBytes[:]
 		}
 		// fmt.Printf("%x\n", key)
-		err := vt.InsertValue(key[:], key[:])
+		err := vt.insertValue(key[:], key[:])
 		if err != nil {
 			panic(err)
 		}
@@ -129,7 +129,7 @@ func makeBenchRocksDBLargeValue() {
 			rand.Read(randBytes)
 			key = randBytes[:]
 		}
-		err := vt.InsertValue(key[:], mainStorageLargeValue)
+		err := vt.insertValue(key[:], mainStorageLargeValue)
 		if err != nil {
 			panic(err)
 		}
@@ -153,7 +153,7 @@ func makeBenchRocksDB1KNodes() {
 			rand.Read(randBytes)
 			key = randBytes[:]
 		}
-		err := vt.InsertValue(key[:], mainStorageLargeValue)
+		err := vt.insertValue(key[:], mainStorageLargeValue)
 		if err != nil {
 			panic(err)
 		}
@@ -178,7 +178,7 @@ func makeBenchRocksDB1KLargeNodes() {
 			rand.Read(randBytes)
 			key = randBytes[:]
 		}
-		err := vt.InsertValue(key[:], mainStorageLargeValue)
+		err := vt.insertValue(key[:], mainStorageLargeValue)
 		if err != nil {
 			panic(err)
 		}
@@ -248,17 +248,17 @@ func TestVerkleTrie_Insert(t *testing.T) {
 	vt := New("alloc_1", db)
 
 	// Insert some data
-	err := vt.Insert(keys[0], []byte("value1"))
+	err := vt.insert(keys[0], []byte("value1"))
 	assert.Nil(t, err)
-	err = vt.Insert(keys[1], []byte("value2"))
+	err = vt.insert(keys[1], []byte("value2"))
 	assert.Nil(t, err)
 
 	// Check that the data is there
-	value, err := vt.GetWithHashedKey(keys[0])
+	value, err := vt.getWithHashedKey(keys[0])
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("value1"), value)
 
-	value, err = vt.GetWithHashedKey(keys[1])
+	value, err = vt.getWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("value2"), value)
 }
@@ -270,21 +270,21 @@ func TestVerkleTrie_Delete(t *testing.T) {
 	vt := New("alloc_1", db)
 
 	// Insert some data
-	err := vt.Insert(keys[0], []byte("value1"))
+	err := vt.insert(keys[0], []byte("value1"))
 	assert.Nil(t, err)
-	err = vt.Insert(keys[1], []byte("value2"))
+	err = vt.insert(keys[1], []byte("value2"))
 	assert.Nil(t, err)
 
 	// Delete some data
-	_, err = vt.DeleteWithHashedKey(keys[0])
+	_, err = vt.deleteWithHashedKey(keys[0])
 	assert.Nil(t, err)
 
 	// Check that the data is no longer there
-	value, err := vt.GetWithHashedKey(keys[0])
+	value, err := vt.getWithHashedKey(keys[0])
 	assert.Nil(t, err)
 	assert.Nil(t, value)
 
-	value, err = vt.GetWithHashedKey(keys[1])
+	value, err = vt.getWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("value2"), value)
 }
@@ -295,10 +295,10 @@ func TestVerkleTrie_Flush(t *testing.T) {
 	defer clean()
 	vt := New("alloc_1", db)
 
-	err := vt.Insert(keys[0], keys[0])
+	err := vt.insert(keys[0], keys[0])
 	assert.Nil(t, err)
 
-	err = vt.Insert(keys[1], keys[1])
+	err = vt.insert(keys[1], keys[1])
 	assert.Nil(t, err)
 
 	// Commit the tree
@@ -311,15 +311,15 @@ func TestVerkleTrie_Flush(t *testing.T) {
 	// Create a new tree with the db
 	newVt := New("alloc_1", db)
 	// Check if the data can be acquired
-	value, err := newVt.GetWithHashedKey(keys[0])
+	value, err := newVt.getWithHashedKey(keys[0])
 	assert.Nil(t, err)
 	assert.Equal(t, keys[0], value)
 
-	value, err = newVt.GetWithHashedKey(keys[1])
+	value, err = newVt.getWithHashedKey(keys[1])
 	assert.Nil(t, err)
 	assert.Equal(t, keys[1], value)
 
-	err = newVt.Insert(keys[2], keys[2])
+	err = newVt.insert(keys[2], keys[2])
 	assert.Nil(t, err)
 	newVt.Flush()
 	fmt.Println("new flush count:", flushCount-oldFlushCount)
@@ -335,23 +335,23 @@ func TestTreeKeyStorage(t *testing.T) {
 	rootHash := keys[1]
 	// insert file: alloc1/testfile.txt
 	key := GetTreeKeyForFileHash(filepathHash)
-	err := vt.Insert(key, rootHash)
+	err := vt.insert(key, rootHash)
 	assert.Nil(t, err)
 
 	vt.Flush()
 
-	v, err := vt.GetWithHashedKey(key)
+	v, err := vt.getWithHashedKey(key)
 	assert.Nil(t, err)
 
 	assert.Equal(t, rootHash, v)
 
 	bigValue := append(keys[0], keys[1]...)
-	err = vt.InsertValue(filepathHash, bigValue)
+	err = vt.insertValue(filepathHash, bigValue)
 	assert.Nil(t, err)
 
 	vt.Flush()
 
-	vv, err := vt.GetValue(filepathHash)
+	vv, err := vt.getValue(filepathHash)
 	assert.Nil(t, err)
 
 	assert.Equal(t, bigValue, vv)
@@ -373,10 +373,10 @@ func TestTreeStorageLargeData(t *testing.T) {
 		values = append(values, keys[0][:]...)
 	}
 
-	err := vt.InsertValue(filepathHash, values)
+	err := vt.insertValue(filepathHash, values)
 	assert.Nil(t, err)
 
-	vv, err := vt.GetValue(filepathHash)
+	vv, err := vt.getValue(filepathHash)
 	assert.Nil(t, err)
 	require.Equal(t, values, vv)
 
@@ -385,7 +385,7 @@ func TestTreeStorageLargeData(t *testing.T) {
 	vt = New("alloc_1", db)
 	fmt.Println("-----------------------------------")
 
-	v, err := vt.GetValue(filepathHash)
+	v, err := vt.getValue(filepathHash)
 	assert.Nil(t, err)
 
 	assert.Equal(t, values, v)
@@ -397,7 +397,7 @@ func TestInsertsNodeChanges(t *testing.T) {
 	defer clean()
 	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:7]); i++ {
-		err := vt.InsertValue(keys[i], keys[i])
+		err := vt.insertValue(keys[i], keys[i])
 		assert.Nil(t, err)
 	}
 
@@ -405,7 +405,7 @@ func TestInsertsNodeChanges(t *testing.T) {
 	oldC := flushCount
 	fmt.Println("flush count:", flushCount)
 
-	vt.Insert(keys[7], keys[7])
+	vt.insert(keys[7], keys[7])
 	vt.Flush()
 	fmt.Println("new flush count:", flushCount-oldC)
 }
@@ -416,12 +416,12 @@ func TestProof(t *testing.T) {
 	defer clean()
 	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
-		err := vt.Insert(keys[i], keys[i])
+		err := vt.insert(keys[i], keys[i])
 		assert.Nil(t, err)
 	}
 
 	root := vt.Commit()
-	dproof, stateDiff, err := MakeProof(vt, keys[:3])
+	dproof, stateDiff, err := makeProof(vt, keys[:3])
 	assert.Nil(t, err)
 
 	dproofBytes, err := json.Marshal(dproof)
@@ -440,7 +440,7 @@ func TestProof(t *testing.T) {
 	err = json.Unmarshal(stateDiffBytes, &stateDiff2)
 	assert.Nil(t, err)
 
-	err = VerifyProofPresence(dproof2, stateDiff2, root[:], keys[:3])
+	err = verifyProofPresence(dproof2, stateDiff2, root[:], keys[:3])
 	assert.Nil(t, err)
 }
 
@@ -450,14 +450,14 @@ func TestProofNotExistKey(t *testing.T) {
 	defer clean()
 	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
-		err := vt.Insert(keys[i], keys[i])
+		err := vt.insert(keys[i], keys[i])
 		assert.Nil(t, err)
 	}
 
 	root := vt.Commit()
 
 	t.Run("proof no key exists", func(t *testing.T) {
-		dp, sdiff, err := MakeProof(vt, keys[3:])
+		dp, sdiff, err := makeProof(vt, keys[3:])
 		assert.Nil(t, err)
 
 		err = VerifyProofAbsence(dp, sdiff, root[:], keys[3:])
@@ -465,7 +465,7 @@ func TestProofNotExistKey(t *testing.T) {
 	})
 
 	t.Run("proof absence of exist key - should fail", func(t *testing.T) {
-		dp, sdiff, err := MakeProof(vt, keys[2:])
+		dp, sdiff, err := makeProof(vt, keys[2:])
 		assert.Nil(t, err)
 
 		err = VerifyProofAbsence(dp, sdiff, root[:], keys[2:])
@@ -479,21 +479,21 @@ func TestDeleteFileRootHash(t *testing.T) {
 	defer clean()
 	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
-		err := vt.InsertFileRootHash(keys[i], keys[i])
+		err := vt.insertFileRootHash(keys[i], keys[i])
 		assert.Nil(t, err)
 	}
 
 	vt.Commit()
-	_, err := vt.DeleteFileRootHash(keys[2])
+	_, err := vt.deleteFileRootHash(keys[2])
 	assert.Nil(t, err)
 	vt.Commit()
 
 	// Verify that the root hash of the file is deleted
-	v2, err := vt.GetFileRootHash(keys[2])
+	v2, err := vt.getFileRootHash(keys[2])
 	assert.Nil(t, err)
 	assert.Nil(t, v2)
 
-	v1, err := vt.GetFileRootHash(keys[1])
+	v1, err := vt.getFileRootHash(keys[1])
 	assert.Nil(t, err)
 	assert.NotNil(t, v1)
 }
@@ -504,27 +504,27 @@ func TestDeleteValue(t *testing.T) {
 	defer clean()
 	vt := New("alloc_1", db)
 	for i := 0; i < len(keys[:3]); i++ {
-		err := vt.InsertValue(keys[i], mainStorageLargeValue[:])
+		err := vt.insertValue(keys[i], mainStorageLargeValue[:])
 		assert.Nil(t, err)
 	}
 
 	vt.Commit()
 
-	vb, err := vt.GetValue(keys[0])
+	vb, err := vt.getValue(keys[0])
 	assert.Nil(t, err)
 	assert.Equal(t, mainStorageLargeValue[:], vb)
 
-	err = vt.DeleteValue(keys[0])
+	err = vt.deleteValue(keys[0])
 	assert.Nil(t, err)
 
 	// verify that the value is deleted
-	vv, err := vt.GetValue(keys[0])
+	vv, err := vt.getValue(keys[0])
 	assert.Nil(t, err)
 	assert.Nil(t, vv)
 
 	// assert that all related nodes are deleted
 	storageSizeKey := GetTreeKeyForStorageSize(keys[0])
-	sv, err := vt.GetWithHashedKey(storageSizeKey)
+	sv, err := vt.getWithHashedKey(storageSizeKey)
 	assert.Nil(t, err)
 	assert.Nil(t, sv)
 
@@ -536,7 +536,7 @@ func TestDeleteValue(t *testing.T) {
 	}
 	for i := 0; i < chunkNum; i++ {
 		chunkKey := GetTreeKeyForStorageSlot(keys[0], uint64(i))
-		cv, err := vt.GetWithHashedKey(chunkKey)
+		cv, err := vt.getWithHashedKey(chunkKey)
 		assert.Nil(t, err)
 		assert.Nil(t, cv)
 	}
@@ -553,7 +553,7 @@ func BenchmarkInsertSmallValue(b *testing.B) {
 		rand.Read(randBytes)
 		key := randBytes[:]
 
-		err := vt.InsertValue(key, key[:])
+		err := vt.insertValue(key, key[:])
 		assert.Nil(b, err)
 		vt.Flush()
 	}
@@ -569,7 +569,7 @@ func BenchmarkInsertLargeValue(b *testing.B) {
 		rand.Read(randBytes)
 		key := randBytes[:]
 
-		err := vt.InsertValue(key, mainStorageLargeValue)
+		err := vt.insertValue(key, mainStorageLargeValue)
 		assert.Nil(b, err)
 		vt.Flush()
 	}
@@ -615,7 +615,7 @@ func BenchmarkMakeProof(b *testing.B) {
 		vt := New("alloc_1", db)
 		for i := 0; i < b.N; i++ {
 			key := benchKeys[i%len(benchKeys)]
-			MakeProof(vt, Keylist{key})
+			makeProof(vt, Keylist{key})
 		}
 	})
 
@@ -625,7 +625,7 @@ func BenchmarkMakeProof(b *testing.B) {
 		vt := New("alloc_1", db)
 		for i := 0; i < b.N; i++ {
 			key := benchKeys[i%len(benchKeys)]
-			MakeProof(vt, Keylist{key})
+			makeProof(vt, Keylist{key})
 		}
 	})
 
@@ -635,7 +635,7 @@ func BenchmarkMakeProof(b *testing.B) {
 		vt := New("alloc_1", db)
 		for i := 0; i < b.N; i++ {
 			key := benchKeys[i%len(benchKeys)]
-			MakeProof(vt, Keylist{key})
+			makeProof(vt, Keylist{key})
 		}
 	})
 
@@ -645,7 +645,7 @@ func BenchmarkMakeProof(b *testing.B) {
 		vt := New("alloc_1", db)
 		for i := 0; i < b.N; i++ {
 			key := benchKeys[i%len(benchKeys)]
-			MakeProof(vt, Keylist{key})
+			makeProof(vt, Keylist{key})
 		}
 
 	})
@@ -655,15 +655,15 @@ func BenchmarkMakeProof(b *testing.B) {
 		defer clean()
 		vt := New("alloc_1", db)
 		// Insert some data
-		err := vt.Insert(keys[0], []byte("value1"))
+		err := vt.insert(keys[0], []byte("value1"))
 		assert.Nil(b, err)
-		err = vt.Insert(keys[1], []byte("value2"))
+		err = vt.insert(keys[1], []byte("value2"))
 		assert.Nil(b, err)
 		vt.Commit()
 
 		for i := 0; i < b.N; i++ {
 			key := keys[i%2]
-			MakeProof(vt, Keylist{key})
+			makeProof(vt, Keylist{key})
 		}
 	})
 }
@@ -674,7 +674,7 @@ func BenchmarkVerifyProof(b *testing.B) {
 
 	vt := New("alloc_1", db)
 	for i := 0; i < len(keys); i++ {
-		err := vt.InsertFileRootHash(keys[i], keys[i])
+		err := vt.insertFileRootHash(keys[i], keys[i])
 		assert.Nil(b, err)
 	}
 
@@ -682,14 +682,41 @@ func BenchmarkVerifyProof(b *testing.B) {
 	root := vt.Hash()
 
 	key := GetTreeKeyForFileHash(keys[0])
-	vp, sd, err := MakeProof(vt, Keylist{key})
+	vp, sd, err := makeProof(vt, Keylist{key})
 	assert.Nil(b, err)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		err = VerifyProofPresence(vp, sd, root[:], Keylist{key})
+		err = verifyProofPresence(vp, sd, root[:], Keylist{key})
 		assert.Nil(b, err)
 	}
+}
+
+func TestMakeProofFileMeta(t *testing.T) {
+	db, clean := testPrepareDB(t)
+	defer clean()
+
+	vt := New("alloc_1", db)
+	for i := 0; i < len(keys)-1; i++ {
+		err := vt.InsertFileMeta(keys[i], keys[i], keys[i])
+		assert.Nil(t, err)
+	}
+
+	vt.Flush()
+	root := vt.Hash()
+	vp, sd, err := MakeProofFileMeta(vt, keys)
+	assert.Nil(t, err)
+
+	t.Run("proof key exists", func(t *testing.T) {
+		err = VerifyProofPresenceFileMeta(vp, sd, root[:], Keylist{keys[0]})
+		assert.Nil(t, err)
+	})
+
+	t.Run("proof key does not exist", func(t *testing.T) {
+		noneExistKey := keys[len(keys)-1]
+		err = VerifyProofPresenceFileMeta(vp, sd, root[:], Keylist{noneExistKey})
+		assert.NotNil(t, err)
+	})
 }

@@ -63,46 +63,46 @@ func (m *VerkleTrie) nodeResolver(key []byte) ([]byte, error) {
 	return m.db.Get(append(m.rootKey, key...))
 }
 
-func (m *VerkleTrie) GetWithHashedKey(key []byte) ([]byte, error) {
+func (m *VerkleTrie) getWithHashedKey(key []byte) ([]byte, error) {
 	return m.root.Get(key, m.nodeResolver)
 }
 
-func (m *VerkleTrie) GetFileRootHash(filepathHash []byte) ([]byte, error) {
+func (m *VerkleTrie) getFileRootHash(filepathHash []byte) ([]byte, error) {
 	key := GetTreeKeyForFileHash(filepathHash)
-	return m.GetWithHashedKey(key)
+	return m.getWithHashedKey(key)
 }
 
-func (m *VerkleTrie) DeleteFileRootHash(filepathHash []byte) (bool, error) {
+func (m *VerkleTrie) deleteFileRootHash(filepathHash []byte) (bool, error) {
 	key := GetTreeKeyForFileHash(filepathHash)
-	return m.DeleteWithHashedKey(key)
+	return m.deleteWithHashedKey(key)
 }
 
-func (m *VerkleTrie) InsertFileRootHash(filepathHash []byte, rootHash []byte) error {
+func (m *VerkleTrie) insertFileRootHash(filepathHash []byte, rootHash []byte) error {
 	key := GetTreeKeyForFileHash(filepathHash)
-	return m.Insert(key, rootHash)
+	return m.insert(key, rootHash)
 }
 
-func (m *VerkleTrie) InsertValue(filepathHash []byte, data []byte) error {
+func (m *VerkleTrie) insertValue(filepathHash []byte, data []byte) error {
 	// insert the value size
 	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
 	vb := uint256.NewInt(uint64(len(data))).Bytes32()
-	if err := m.Insert(storageSizeKey, vb[:]); err != nil {
+	if err := m.insert(storageSizeKey, vb[:]); err != nil {
 		return errors.Wrap(err, "insert storage size")
 	}
 
 	chunks := getStorageDataChunks(data)
 	for i, chunk := range chunks {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, uint64(i))
-		if err := m.Insert(chunkKey, chunk); err != nil {
+		if err := m.insert(chunkKey, chunk); err != nil {
 			return errors.Wrap(err, "insert storage chunk")
 		}
 	}
 	return nil
 }
 
-func (m *VerkleTrie) DeleteValue(filepathHash []byte) error {
+func (m *VerkleTrie) deleteValue(filepathHash []byte) error {
 	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
-	sizeBytes, err := m.GetWithHashedKey(storageSizeKey)
+	sizeBytes, err := m.getWithHashedKey(storageSizeKey)
 	if err != nil {
 		return errors.Wrap(err, "delete value error on getting storage size")
 	}
@@ -112,14 +112,14 @@ func (m *VerkleTrie) DeleteValue(filepathHash []byte) error {
 	chunkNum := getChunkNum(*size)
 	for i := 0; i < int(chunkNum); i++ {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, uint64(i))
-		_, err = m.DeleteWithHashedKey(chunkKey)
+		_, err = m.deleteWithHashedKey(chunkKey)
 		if err != nil {
 			return errors.Wrap(err, "delete value error on deleting storage chunk")
 		}
 	}
 
 	// delete the storage size node
-	if _, err := m.DeleteWithHashedKey(storageSizeKey); err != nil {
+	if _, err := m.deleteWithHashedKey(storageSizeKey); err != nil {
 		return errors.Wrap(err, "delete storage size")
 	}
 
@@ -150,9 +150,9 @@ func getStorageDataChunks(data []byte) [][]byte {
 	return chunks
 }
 
-func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
+func (m *VerkleTrie) getValue(filepathHash []byte) ([]byte, error) {
 	storageSizeKey := GetTreeKeyForStorageSize(filepathHash)
-	sizeBytes, err := m.GetWithHashedKey(storageSizeKey)
+	sizeBytes, err := m.getWithHashedKey(storageSizeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	valueBytes := make([]byte, 0, size.Uint64())
 	for i := uint64(0); i < chunkNum.Uint64(); i++ {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, i)
-		chunk, err := m.GetWithHashedKey(chunkKey)
+		chunk, err := m.getWithHashedKey(chunkKey)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	}
 	if mod.Uint64() > 0 {
 		chunkKey := GetTreeKeyForStorageSlot(filepathHash, chunkNum.Uint64())
-		chunk, err := m.GetWithHashedKey(chunkKey)
+		chunk, err := m.getWithHashedKey(chunkKey)
 		if err != nil {
 			return nil, err
 		}
@@ -187,11 +187,11 @@ func (m *VerkleTrie) GetValue(filepathHash []byte) ([]byte, error) {
 	return valueBytes, nil
 }
 
-func (m *VerkleTrie) Insert(key []byte, value []byte) error {
+func (m *VerkleTrie) insert(key []byte, value []byte) error {
 	return m.root.Insert(key, value, m.nodeResolver)
 }
 
-func (m *VerkleTrie) DeleteWithHashedKey(key []byte) (bool, error) {
+func (m *VerkleTrie) deleteWithHashedKey(key []byte) (bool, error) {
 	return m.root.Delete(key, m.nodeResolver)
 }
 
@@ -227,15 +227,62 @@ func (m *VerkleTrie) Flush() {
 	m.root.(*verkle.InternalNode).Flush(m.flushFunc)
 }
 
+func (m *VerkleTrie) InsertFileMeta(filepathHash []byte, rootHash, metaData []byte) error {
+	if err := m.insertFileRootHash(filepathHash, rootHash); err != nil {
+		return err
+	}
+
+	// insert metaData
+	return m.insertValue(filepathHash, metaData)
+}
+
+func (m *VerkleTrie) DeleteFileMeta(filepathHash []byte) error {
+	_, err := m.deleteWithHashedKey(GetTreeKeyForFileHash(filepathHash))
+	if err != nil {
+		return err
+	}
+
+	return m.deleteValue(filepathHash)
+}
+
+func (m *VerkleTrie) GetFileMetaRootHash(filepathHash []byte) ([]byte, error) {
+	return m.getFileRootHash(filepathHash)
+}
+
+func (m *VerkleTrie) GetFileMeta(filepathHash []byte) ([]byte, error) {
+	return m.getValue(filepathHash)
+}
+
 type Keylist [][]byte
 
-func MakeProof(trie *VerkleTrie, keys Keylist) (*verkle.VerkleProof, verkle.StateDiff, error) {
+func makeProof(trie *VerkleTrie, keys Keylist) (*verkle.VerkleProof, verkle.StateDiff, error) {
 	proof, _, _, _, err := verkle.MakeVerkleMultiProof(trie.root, nil, keys, trie.nodeResolver)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return verkle.SerializeProof(proof)
+}
+
+func MakeProofFileMeta(trie *VerkleTrie, files [][]byte) (*verkle.VerkleProof, verkle.StateDiff, error) {
+	keys := make([][]byte, 0, len(files))
+	for _, file := range files {
+		keys = append(keys, GetTreeKeyForFileHash(file))
+	}
+	proof, _, _, _, err := verkle.MakeVerkleMultiProof(trie.root, nil, keys, trie.nodeResolver)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return verkle.SerializeProof(proof)
+}
+
+func VerifyProofPresenceFileMeta(vp *verkle.VerkleProof, stateDiff verkle.StateDiff, stateRoot []byte, files Keylist) error {
+	keys := make([][]byte, 0, len(files))
+	for _, file := range files {
+		keys = append(keys, GetTreeKeyForFileHash(file))
+	}
+	return verifyProofPresence(vp, stateDiff, stateRoot, keys)
 }
 
 func verifyProof(vp *verkle.VerkleProof, stateDiff verkle.StateDiff, stateRoot []byte) (*verkle.Proof, error) {
@@ -261,8 +308,8 @@ func verifyProof(vp *verkle.VerkleProof, stateDiff verkle.StateDiff, stateRoot [
 	return dproof, nil
 }
 
-// VerifyProofPresence verifies that the verkle proof is valid and keys are presence in the state tree
-func VerifyProofPresence(vp *verkle.VerkleProof, stateDiff verkle.StateDiff, stateRoot []byte, keys Keylist) error {
+// verifyProofPresence verifies that the verkle proof is valid and keys are presence in the state tree
+func verifyProofPresence(vp *verkle.VerkleProof, stateDiff verkle.StateDiff, stateRoot []byte, keys Keylist) error {
 	if _, err := verifyProof(vp, stateDiff, stateRoot); err != nil {
 		return err
 	}
