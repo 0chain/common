@@ -12,38 +12,55 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const maxRollbacks = 5
+const defaultMaxRollbacks = 5
 
 var DBVerkleNodeKeyPrefix = []byte("verkle_node_")
 
 var ChunkSize = uint256.NewInt(32) // 32
 
-type (
-	Hash      [32]byte
-	Address32 [32]byte
-)
+type Hash [32]byte
 
 type VerkleTrie struct {
-	db        database.DB
-	rootKey   []byte // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
-	root      verkle.VerkleNode
-	prevRoots []verkle.VerkleNode
+	db           database.DB
+	rootKey      []byte // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
+	root         verkle.VerkleNode
+	prevRoots    []verkle.VerkleNode // previous root nodes for rollback
+	maxRollbacks int
 }
 
 func rootKey(key string) []byte {
 	return append(DBVerkleNodeKeyPrefix, key...)
 }
 
-func New(key string, db database.DB) *VerkleTrie {
+type OptionFunc func(*VerkleTrie)
+
+func WithMaxRollbacks(maxRollbacks int) OptionFunc {
+	return func(vt *VerkleTrie) {
+		vt.maxRollbacks = maxRollbacks
+	}
+}
+
+func New(key string, db database.DB, options ...OptionFunc) *VerkleTrie {
 	var root verkle.VerkleNode
 	rootKey := rootKey(key)
-	// prevRoots := ring.New(maxRollbacks)
+
+	vt := &VerkleTrie{
+		db:           db,
+		rootKey:      rootKey,
+		maxRollbacks: defaultMaxRollbacks,
+	}
+
+	for _, option := range options {
+		option(vt)
+	}
 
 	payload, err := db.Get([]byte(rootKey))
 	if err != nil {
 		if err == database.ErrMissingNode {
 			root := verkle.New()
-			return &VerkleTrie{root: root, prevRoots: []verkle.VerkleNode{root.Copy()}, rootKey: rootKey, db: db}
+			vt.root = root
+			vt.prevRoots = []verkle.VerkleNode{root.Copy()}
+			return vt
 		}
 		panic(err)
 	}
@@ -53,12 +70,9 @@ func New(key string, db database.DB) *VerkleTrie {
 		panic(err)
 	}
 
-	return &VerkleTrie{
-		db:        db,
-		rootKey:   rootKey,
-		root:      root,
-		prevRoots: []verkle.VerkleNode{root.Copy()},
-	}
+	vt.root = root
+	vt.prevRoots = []verkle.VerkleNode{root.Copy()}
+	return vt
 }
 
 func (m *VerkleTrie) dbKey(key []byte) []byte {
@@ -237,7 +251,7 @@ func (m *VerkleTrie) Flush() {
 	}
 
 	m.prevRoots = append(m.prevRoots, newRoot)
-	if len(m.prevRoots) > maxRollbacks+1 { // +1 for because the init root will take a place in the prevRoots
+	if len(m.prevRoots) > m.maxRollbacks+1 { // +1 for because the init root will take a place in the prevRoots
 		m.prevRoots = m.prevRoots[1:]
 	}
 

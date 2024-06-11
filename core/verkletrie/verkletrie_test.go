@@ -824,12 +824,12 @@ func TestRollback(t *testing.T) {
 		vt.InsertFileMeta(keys[0], keys[9], keys[9])
 		vt.Flush()
 
-		for i := 0; i < maxRollbacks; i++ {
+		for i := 0; i < defaultMaxRollbacks; i++ {
 			vt.InsertFileMeta(keys[0], keys[i], keys[i])
 			vt.Flush()
 		}
 
-		for i := 0; i < maxRollbacks; i++ {
+		for i := 0; i < defaultMaxRollbacks; i++ {
 			err := vt.Rollback()
 			assert.Nil(t, err)
 		}
@@ -841,65 +841,29 @@ func TestRollback(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, keys[9], vold)
 	})
-}
 
-func TestGetNodesFromOldRoot(t *testing.T) {
-	db, clean := testPrepareDB(t)
-	defer clean()
+	t.Run("rollback custom max rollback", func(t *testing.T) {
+		db, clean := testPrepareDB(t)
+		defer clean()
+		vt := New("alloc_1", db, WithMaxRollbacks(2))
+		vt.InsertFileMeta(keys[0], keys[9], keys[9])
+		vt.Flush()
 
-	vt := New("alloc_1", db)
-	vt.InsertFileMeta(keys[0], keys[1], keys[2])
-	vt.InsertFileMeta(keys[1], keys[1], keys[1])
-	vt.Flush()
-	// vt.Commit()
-	// root1Bytes, err := vt.root.Serialize()
-	// assert.Nil(t, err)
-	root1 := vt.Hash()
+		for i := 0; i < 2; i++ {
+			vt.InsertFileMeta(keys[0], keys[i], keys[i])
+			vt.Flush()
+		}
 
-	// vtr := vt.root
+		for i := 0; i < 2; i++ {
+			err := vt.Rollback()
+			assert.Nil(t, err)
+		}
 
-	// vtr2 := vt.root.Copy()
-	// vt.root = vtr2
-	// vt.InsertFileMeta(keys[0], keys[2], keys[3])
-	// vt.Flush()
+		err := vt.Rollback()
+		assert.NotNil(t, err)
 
-	// vt.root = vtr
-	// vvr, err := vt.GetFileMeta(keys[0])
-	// assert.Nil(t, err)
-	// assert.Equal(t, keys[2], vvr)
-
-	// vt1 := New("alloc_1", db, root1Bytes)
-	// assert.Equal(t, root1, vt1.Hash())
-	// v1, err := vt1.GetFileMeta(keys[0])
-	// assert.Nil(t, err)
-	// // fmt.Printf("v1: %x\n", v1)
-	// fmt.Printf("keys[2]: %x\n", keys[2])
-	// assert.Equal(t, keys[2], v1)
-
-	vt.InsertFileMeta(keys[0], keys[2], keys[3])
-	vt.Flush()
-
-	vk1, err := vt.GetFileMeta(keys[1])
-	assert.Nil(t, err)
-	assert.Equal(t, keys[1], vk1)
-
-	fmt.Println("--------- after insert new value")
-	// // root2 := vt.Hash()
-	// // root2Bytes, err := vt.root.Serialize()
-	// // assert.Nil(t, err)
-
-	// // assert.NotEqual(t, root1, root2)
-
-	vt1 := New("alloc_1", db)
-	assert.Equal(t, root1, vt1.Hash())
-	v1, err := vt1.GetFileMeta(keys[0])
-	assert.Nil(t, err)
-	assert.Equal(t, keys[2], v1)
-
-	// // vt2 := New("alloc_1", db, root2Bytes)
-	// // assert.Nil(t, err)
-	// // assert.Equal(t, root2, vt2.Hash())
-	// // v2, err := vt2.GetFileMeta(keys[0])
-	// // assert.Nil(t, err)
-	// // assert.Equal(t, keys[3], v2)
+		vold, err := vt.GetFileMeta(keys[0])
+		assert.Nil(t, err)
+		assert.Equal(t, keys[9], vold)
+	})
 }
