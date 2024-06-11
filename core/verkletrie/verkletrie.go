@@ -12,6 +12,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
+const maxRollbacks = 5
+
 var DBVerkleNodeKeyPrefix = []byte("verkle_node_")
 
 var ChunkSize = uint256.NewInt(32) // 32
@@ -22,9 +24,10 @@ type (
 )
 
 type VerkleTrie struct {
-	db      database.DB
-	rootKey []byte // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
-	root    verkle.VerkleNode
+	db        database.DB
+	rootKey   []byte // the key in db where the whole serialized verkle trie to be persisted. Could be the allocation id
+	root      verkle.VerkleNode
+	prevRoots []verkle.VerkleNode
 }
 
 func rootKey(key string) []byte {
@@ -34,11 +37,13 @@ func rootKey(key string) []byte {
 func New(key string, db database.DB) *VerkleTrie {
 	var root verkle.VerkleNode
 	rootKey := rootKey(key)
+	// prevRoots := ring.New(maxRollbacks)
 
 	payload, err := db.Get([]byte(rootKey))
 	if err != nil {
 		if err == database.ErrMissingNode {
-			return &VerkleTrie{root: verkle.New(), rootKey: rootKey, db: db}
+			root := verkle.New()
+			return &VerkleTrie{root: root, prevRoots: []verkle.VerkleNode{root.Copy()}, rootKey: rootKey, db: db}
 		}
 		panic(err)
 	}
@@ -49,9 +54,10 @@ func New(key string, db database.DB) *VerkleTrie {
 	}
 
 	return &VerkleTrie{
-		db:      db,
-		rootKey: rootKey,
-		root:    root,
+		db:        db,
+		rootKey:   rootKey,
+		root:      root,
+		prevRoots: []verkle.VerkleNode{root.Copy()},
 	}
 }
 
@@ -224,7 +230,41 @@ func (m *VerkleTrie) flushFunc(p []byte, node verkle.VerkleNode) {
 
 func (m *VerkleTrie) Flush() {
 	m.root.Commit()
+	newRoot := m.root.Copy()
+	if m.prevRoots[len(m.prevRoots)-1].Hash().Equal(newRoot.Hash()) {
+		// do nothing as there's no changes happened
+		return
+	}
+
+	m.prevRoots = append(m.prevRoots, newRoot)
+	if len(m.prevRoots) > maxRollbacks+1 { // +1 for because the init root will take a place in the prevRoots
+		m.prevRoots = m.prevRoots[1:]
+	}
+
 	m.root.(*verkle.InternalNode).Flush(m.flushFunc)
+}
+
+func (m *VerkleTrie) Rollback() error {
+	prevRoot := m.prevRoots[len(m.prevRoots)-1]
+	if prevRoot.Hash().Equal(m.root.Hash()) {
+		if len(m.prevRoots) <= 1 {
+			// current node is the oldest nodes, do nothing
+			return errors.New("nothing to rollback")
+		}
+
+		// move to previous root
+		m.root = m.prevRoots[len(m.prevRoots)-2].Copy()
+		m.prevRoots = m.prevRoots[:len(m.prevRoots)-1]
+		m.root.(*verkle.InternalNode).Flush(m.flushFunc)
+		// fmt.Printf("rollback to %x\n", m.root.Hash().Bytes())
+		return nil
+	}
+
+	m.root = m.prevRoots[len(m.prevRoots)-1].Copy()
+	m.prevRoots = m.prevRoots[:len(m.prevRoots)-1]
+	fmt.Println("prev root num:", len(m.prevRoots))
+	m.root.(*verkle.InternalNode).Flush(m.flushFunc)
+	return nil
 }
 
 func (m *VerkleTrie) InsertFileMeta(filepathHash []byte, rootHash, metaData []byte) error {
