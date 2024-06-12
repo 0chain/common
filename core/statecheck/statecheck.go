@@ -3,6 +3,7 @@ package statecheck
 import (
 	"errors"
 	"reflect"
+	"sort"
 )
 
 // StateCheck is a helper tool that should only be used in development environment.
@@ -36,24 +37,19 @@ func NewStateCheck() *StateCheck {
 }
 
 // Add adds a new key-value pair to the state checker
-func (sc *StateCheck) Add(key []byte, value interface{}) error {
+func (sc *StateCheck) Add(key string, value interface{}) error {
 	// the value must be a pointer
 	if reflect.TypeOf(value).Kind() != reflect.Ptr {
 		return errors.New("value must be a pointer")
 	}
 
-	_, ok := sc.stateNodes[string(key)]
-	if ok {
-		return errors.New("key already exists")
-	}
-
-	sc.stateNodes[string(key)] = value
+	sc.stateNodes[key] = value
 	return nil
 }
 
 // Get returns the value associated with the key
-func (sc *StateCheck) Get(key []byte) (interface{}, error) {
-	value, ok := sc.stateNodes[string(key)]
+func (sc *StateCheck) Get(key string) (interface{}, error) {
+	value, ok := sc.stateNodes[key]
 	if !ok {
 		return nil, errors.New("key not found")
 	}
@@ -61,12 +57,24 @@ func (sc *StateCheck) Get(key []byte) (interface{}, error) {
 	return value, nil
 }
 
+func (sc *StateCheck) Remove(key string) {
+	delete(sc.stateNodes, key)
+}
+
 // ForEach iterates over all the keys in the state checker
-func (sc *StateCheck) ForEach(handler func(key []byte, value interface{}) error) error {
-	for k, v := range sc.stateNodes {
-		if err := handler([]byte(k), v); err != nil {
+func (sc *StateCheck) ForEach(handler func(key string, value interface{}) error) error {
+	// sort by keys
+	keys := make([]string, 0, len(sc.stateNodes))
+	for k := range sc.stateNodes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := handler(k, sc.stateNodes[k]); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
