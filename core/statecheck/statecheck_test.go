@@ -11,12 +11,12 @@ import (
 func TestAdd(t *testing.T) {
 	sck := NewStateCheck()
 	v := []byte("b")
-	err := sck.Add([]byte("a"), &v)
+	err := sck.Add("a", &v)
 	require.NoError(t, err)
 
 	t.Run("none pointer value", func(t *testing.T) {
 		v := []byte("b")
-		err := sck.Add([]byte("a"), v)
+		err := sck.Add("a", v)
 		require.Error(t, err)
 	})
 }
@@ -24,10 +24,10 @@ func TestAdd(t *testing.T) {
 func TestGet(t *testing.T) {
 	sck := NewStateCheck()
 	v := []byte("b")
-	err := sck.Add([]byte("a"), &v)
+	err := sck.Add("a", &v)
 	require.NoError(t, err)
 
-	vb, err := sck.Get([]byte("a"))
+	vb, err := sck.Get("a")
 	require.NoError(t, err)
 	require.Equal(t, vb, &v)
 
@@ -38,20 +38,20 @@ func TestGet(t *testing.T) {
 
 	// get missing value
 
-	_, err = sck.Get([]byte("b"))
+	_, err = sck.Get("b")
 	require.Error(t, err)
 }
 
 func TestForEach(t *testing.T) {
 	sck := NewStateCheck()
 	v := []byte("b")
-	err := sck.Add([]byte("a"), &v)
+	err := sck.Add("a", &v)
 	require.NoError(t, err)
-	err = sck.Add([]byte("b"), &v)
+	err = sck.Add("b", &v)
 	require.NoError(t, err)
 
 	var count int
-	err = sck.ForEach(func(key []byte, value interface{}) error {
+	err = sck.ForEach(func(key string, value interface{}) error {
 		count++
 		return nil
 	})
