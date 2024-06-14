@@ -3,6 +3,7 @@ package statecheck
 import (
 	"errors"
 	"reflect"
+	"runtime/debug"
 	"sort"
 	"sync"
 )
@@ -29,12 +30,14 @@ import (
 type StateCheck struct {
 	lock       sync.Mutex
 	stateNodes map[string]interface{}
+	stacks     map[string][]byte
 }
 
 // NewStateCheck creates a new state checker
 func NewStateCheck() *StateCheck {
 	return &StateCheck{
 		stateNodes: make(map[string]interface{}),
+		stacks:     make(map[string][]byte),
 	}
 }
 
@@ -48,6 +51,7 @@ func (sc *StateCheck) Add(key string, value interface{}) error {
 	}
 
 	sc.stateNodes[key] = value
+	sc.stacks[key] = debug.Stack()
 	return nil
 }
 
@@ -61,6 +65,12 @@ func (sc *StateCheck) Get(key string) (interface{}, error) {
 	}
 
 	return value, nil
+}
+
+func (sc *StateCheck) GetStack(key string) []byte {
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
+	return sc.stacks[key]
 }
 
 func (sc *StateCheck) Remove(key string) {
