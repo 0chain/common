@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"sync"
 )
 
 // StateCheck is a helper tool that should only be used in development environment.
@@ -26,6 +27,7 @@ import (
 
 // StateCheck is a state checker
 type StateCheck struct {
+	lock       sync.Mutex
 	stateNodes map[string]interface{}
 }
 
@@ -39,6 +41,8 @@ func NewStateCheck() *StateCheck {
 // Add adds a new key-value pair to the state checker
 func (sc *StateCheck) Add(key string, value interface{}) error {
 	// the value must be a pointer
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
 	if reflect.TypeOf(value).Kind() != reflect.Ptr {
 		return errors.New("value must be a pointer")
 	}
@@ -49,6 +53,8 @@ func (sc *StateCheck) Add(key string, value interface{}) error {
 
 // Get returns the value associated with the key
 func (sc *StateCheck) Get(key string) (interface{}, error) {
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
 	value, ok := sc.stateNodes[key]
 	if !ok {
 		return nil, errors.New("key not found")
@@ -58,11 +64,15 @@ func (sc *StateCheck) Get(key string) (interface{}, error) {
 }
 
 func (sc *StateCheck) Remove(key string) {
+	sc.lock.Lock()
 	delete(sc.stateNodes, key)
+	sc.lock.Unlock()
 }
 
 // ForEach iterates over all the keys in the state checker
 func (sc *StateCheck) ForEach(handler func(key string, value interface{}) error) error {
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
 	// sort by keys
 	keys := make([]string, 0, len(sc.stateNodes))
 	for k := range sc.stateNodes {
