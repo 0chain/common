@@ -67,9 +67,8 @@ func (sc *StateCheck) Get(key string) (interface{}, error) {
 	return value, nil
 }
 
+// GetStack returns the stack trace associated with the key
 func (sc *StateCheck) GetStack(key string) []byte {
-	sc.lock.Lock()
-	defer sc.lock.Unlock()
 	return sc.stacks[key]
 }
 
