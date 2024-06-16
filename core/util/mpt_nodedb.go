@@ -94,12 +94,13 @@ func (mndb *MemoryNodeDB) getNode(key Key) (Node, error) {
 // unsafe
 func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
 	nd := node.CloneNode()
-	if DebugMPTNode {
-		if !bytes.Equal(key, nd.GetHashBytes()) {
-			logging.Logger.Error("MPT - put node key not match",
-				zap.String("key", ToHex(key)),
-				zap.String("node", ToHex(nd.GetHashBytes())))
-		}
+	// if DebugMPTNode {
+	if !bytes.Equal(key, nd.GetHashBytes()) {
+		logging.Logger.Error("MPT - put node key not match",
+			zap.String("key", ToHex(key)),
+			zap.String("cloned node", ToHex(nd.GetHashBytes())),
+			zap.String("node", ToHex(node.GetHashBytes())))
+		// }
 	}
 
 	mndb.Nodes[StrKey(key)] = nd
