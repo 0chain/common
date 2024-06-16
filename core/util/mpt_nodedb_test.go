@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/statecache"
 	"github.com/linxGnu/grocksdb"
 	"github.com/stretchr/testify/require"
@@ -1254,4 +1255,79 @@ func TestMemoryNodeDB_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNodeClone(t *testing.T) {
+	t.Run("Leaf node clone", func(t *testing.T) {
+		rtn := NewOriginTrackerNode()
+		rtn.SetOrigin(Sequence(1))
+		ln := &LeafNode{
+			OriginTrackerNode: rtn,
+			Path:              Path("path"),
+			Prefix:            Path("prefix"),
+		}
+		ln.SetValue(&AState{balance: 1})
+
+		lnv := ln.Encode()
+
+		clone := ln.Clone()
+		nln := clone.(*LeafNode)
+		nlnv := nln.Encode()
+		require.Equal(t, lnv, nlnv)
+	})
+
+	t.Run("Leaf value clone", func(t *testing.T) {
+		rtn := NewOriginTrackerNode()
+		rtn.SetOrigin(Sequence(1))
+		ln := &ValueNode{
+			OriginTrackerNode: rtn,
+			Value:             &AState{balance: 1},
+		}
+
+		lnv := ln.Encode()
+
+		clone := ln.Clone()
+		nln := clone.(*ValueNode)
+		nlnv := nln.Encode()
+		require.Equal(t, lnv, nlnv)
+	})
+
+	t.Run("Extension node clone", func(t *testing.T) {
+		rtn := NewOriginTrackerNode()
+		rtn.SetOrigin(Sequence(1))
+		en := &ExtensionNode{
+			OriginTrackerNode: rtn,
+			Path:              Path("path"),
+			NodeKey:           Key("prefix"),
+		}
+
+		lnv := en.Encode()
+
+		clone := en.Clone()
+		nln := clone.(*ExtensionNode)
+		nlnv := nln.Encode()
+		require.Equal(t, lnv, nlnv)
+	})
+
+	t.Run("Full node clone", func(t *testing.T) {
+		rtn := NewOriginTrackerNode()
+		rtn.SetOrigin(Sequence(1))
+		fn := &FullNode{
+			OriginTrackerNode: rtn,
+		}
+		for i := 0; i < 16; i++ {
+			v := encryption.RawHash(fmt.Sprintf("%x", i))
+			fn.PutChild(fn.indexToByte(byte(i)), v[:])
+		}
+
+		fn.SetValue(&AState{balance: 1})
+
+		lnv := fn.Encode()
+
+		clone := fn.Clone()
+		nln := clone.(*FullNode)
+
+		nlnv := nln.Encode()
+		require.Equal(t, lnv, nlnv)
+	})
 }
