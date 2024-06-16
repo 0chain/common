@@ -322,6 +322,11 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 				if ckey != nil {
 					cnode, err := mndb.getNode(ckey)
 					if err == nil {
+						if !bytes.Equal(ckey, cnode.GetHashBytes()) {
+							logging.Logger.Error("[node key debug] validate - ckey not match",
+								zap.String("ckey", ToHex(ckey)),
+								zap.String("cnode", ToHex(cnode.GetHashBytes())))
+						}
 						nodes[StrKey(ckey)] = cnode
 						iterate(cnode)
 					}
@@ -423,12 +428,13 @@ func (lndb *LevelNodeDB) getNode(key Key) (Node, error) {
 // unsafe
 func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
 	nd := node.CloneNode()
-	if DebugMPTNode {
-		if !bytes.Equal(key, nd.GetHashBytes()) {
-			logging.Logger.Error("MPT - put node key not match, level node",
-				zap.String("key", ToHex(key)),
-				zap.String("node_key", ToHex(nd.GetHashBytes())))
-		}
+	// if DebugMPTNode {
+	if !bytes.Equal(key, nd.GetHashBytes()) {
+		logging.Logger.Error("[node key debug] MPT - put node key not match, level node",
+			zap.String("key", ToHex(key)),
+			zap.String("clone node_key", ToHex(nd.GetHashBytes())),
+			zap.String("node", ToHex(node.GetHashBytes())))
+		// }
 	}
 	return lndb.current.PutNode(key, node)
 }
