@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/0chain/common/core/common"
 	"github.com/0chain/common/core/logging"
 	"go.uber.org/atomic"
 
@@ -365,8 +366,8 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 				zap.Int("db size", len(mndb.Nodes)),
 				zap.String("tree", strings.Join(nodeKeyLogs, "\n")))
 			// TODO: add it back after debugging
-			// return common.NewError("nodes_outside_tree", "not all nodes are from the root")
-			return nil
+			return common.NewError("nodes_outside_tree", "not all nodes are from the root")
+			// return nil
 		}
 		return nil
 	})
