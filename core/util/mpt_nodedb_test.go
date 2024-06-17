@@ -1274,6 +1274,9 @@ func TestNodeClone(t *testing.T) {
 		nln := clone.(*LeafNode)
 		nlnv := nln.Encode()
 		require.Equal(t, lnv, nlnv)
+
+		lncn := ln.CloneNode().Encode()
+		require.Equal(t, lnv, lncn)
 	})
 
 	t.Run("Leaf value clone", func(t *testing.T) {
@@ -1290,6 +1293,9 @@ func TestNodeClone(t *testing.T) {
 		nln := clone.(*ValueNode)
 		nlnv := nln.Encode()
 		require.Equal(t, lnv, nlnv)
+
+		lncn := ln.CloneNode().Encode()
+		require.Equal(t, lnv, lncn)
 	})
 
 	t.Run("Extension node clone", func(t *testing.T) {
@@ -1307,6 +1313,9 @@ func TestNodeClone(t *testing.T) {
 		nln := clone.(*ExtensionNode)
 		nlnv := nln.Encode()
 		require.Equal(t, lnv, nlnv)
+
+		encn := en.CloneNode().Encode()
+		require.Equal(t, lnv, encn)
 	})
 
 	t.Run("Full node clone", func(t *testing.T) {
@@ -1329,12 +1338,42 @@ func TestNodeClone(t *testing.T) {
 
 		nlnv := nln.Encode()
 		require.Equal(t, lnv, nlnv)
+
+		cnn := fn.CloneNode()
+		cnnv := cnn.Encode()
+		require.Equal(t, lnv, cnnv)
+	})
+
+	t.Run("Full node no value clone", func(t *testing.T) {
+		rtn := NewOriginTrackerNode()
+		rtn.SetOrigin(Sequence(1))
+		fn := &FullNode{
+			OriginTrackerNode: rtn,
+		}
+		for i := 0; i < 16; i++ {
+			v := encryption.RawHash(fmt.Sprintf("%x", i))
+			fn.PutChild(fn.indexToByte(byte(i)), v[:])
+		}
+
+		// fn.SetValue(&AState{balance: 1})
+
+		lnv := fn.Encode()
+
+		clone := fn.Clone()
+		nln := clone.(*FullNode)
+
+		nlnv := nln.Encode()
+		require.Equal(t, lnv, nlnv)
+
+		cnn := fn.CloneNode()
+		cnnv := cnn.Encode()
+		require.Equal(t, lnv, cnnv)
 	})
 }
 
 func TestMemoryDBValidate(t *testing.T) {
-	kvs := getTestKeyValues(100)
-	keys, nodes := getTestKeysAndValues(kvs)
+	// kvs := getTestKeyValues(100)
+	// keys, nodes := getTestKeysAndValues(kvs)
 
 	// mndb := NewMemoryNodeDB()
 	// require.NoError(t, mndb.MultiPutNode(keys, nodes))
