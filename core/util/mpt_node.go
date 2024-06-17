@@ -494,18 +494,18 @@ func (fn *FullNode) CloneNode() Node {
 }
 
 func (fn *FullNode) Clone() statecache.Value {
-	// vv := fn.Encode()
-	// if len(vv) == 0 {
-	// 	panic("clone FullNode encode failed")
-	// }
+	vv := fn.Encode()
+	if len(vv) == 0 {
+		panic("clone FullNode encode failed")
+	}
 
-	// clone, err := CreateNode(bytes.NewBuffer(vv))
-	// if err != nil {
-	// 	panic(fmt.Errorf("clone FullNode decode failed: %v", err))
-	// }
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
+		panic(fmt.Errorf("clone FullNode decode failed: %v", err))
+	}
 
-	// return clone
-	return fn.CloneNode()
+	return clone
+	// return fn.CloneNode()
 }
 
 func (fn *FullNode) CopyFrom(v interface{}) bool {
