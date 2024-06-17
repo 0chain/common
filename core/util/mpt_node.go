@@ -681,18 +681,18 @@ func (en *ExtensionNode) CloneNode() Node {
 // }
 
 func (en *ExtensionNode) Clone() statecache.Value {
-	vv := en.Encode()
-	if len(vv) == 0 {
-		panic("clone ExtensionNode encode failed")
-	}
+	// vv := en.Encode()
+	// if len(vv) == 0 {
+	// 	panic("clone ExtensionNode encode failed")
+	// }
 
-	clone, err := CreateNode(bytes.NewBuffer(vv))
-	if err != nil {
-		panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
-	}
+	// clone, err := CreateNode(bytes.NewBuffer(vv))
+	// if err != nil {
+	// 	panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
+	// }
 
-	return clone
-	// return en.CloneNode()
+	// return clone
+	return en.CloneNode()
 }
 
 func (en *ExtensionNode) CopyFrom(v interface{}) bool {
