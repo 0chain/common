@@ -315,6 +315,7 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 	nodes := map[StrKey]Node{
 		StrKey(root.GetHashBytes()): root,
 	}
+	var nodeKeyLogs []string
 	var iterate func(node Node, depth int)
 	iterate = func(node Node, depth int) {
 		dashes := make([]string, depth)
@@ -324,7 +325,8 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 		indent := strings.Join(dashes, "")
 		switch nodeImpl := node.(type) {
 		case *FullNode:
-			fmt.Println(indent, "F:", nodeImpl.GetHash())
+			kl := indent + "F:" + nodeImpl.GetHash()
+			nodeKeyLogs = append(nodeKeyLogs, kl)
 			for _, ckey := range nodeImpl.Children {
 				if ckey != nil {
 					cnode, err := mndb.getNode(ckey)
@@ -340,7 +342,8 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 				}
 			}
 		case *ExtensionNode:
-			fmt.Println(indent, "E:", nodeImpl.GetHash())
+			kl := indent + "E:" + nodeImpl.GetHash()
+			nodeKeyLogs = append(nodeKeyLogs, kl)
 			ckey := nodeImpl.NodeKey
 			cnode, err := mndb.getNode(ckey)
 			if err == nil {
@@ -348,10 +351,12 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 				iterate(cnode, depth+1)
 			}
 		default:
-			fmt.Println("none F/E")
+			// fmt.Println("none F/E")
+			nodeKeyLogs = append(nodeKeyLogs, "none F/E")
 		}
 	}
 	iterate(root, 1)
+	logging.Logger.Debug("node key logs", zap.String("logs", strings.Join(nodeKeyLogs, "\n")))
 	return mndb.iterate(context.TODO(), func(ctx context.Context, key Key, node Node) error {
 		if _, ok := nodes[StrKey(node.GetHashBytes())]; !ok {
 			Logger.Error("mndb validate",
