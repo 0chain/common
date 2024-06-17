@@ -1193,7 +1193,7 @@ func TestLevelNodeDB_Iterate(t *testing.T) {
 }
 
 func TestMemoryNodeDB_Validate(t *testing.T) {
-	t.Skip("need protect DebugMPTNode against concurrent access")
+	// t.Skip("need protect DebugMPTNode against concurrent access")
 	t.Parallel()
 
 	mndb := NewMemoryNodeDB()
@@ -1330,4 +1330,15 @@ func TestNodeClone(t *testing.T) {
 		nlnv := nln.Encode()
 		require.Equal(t, lnv, nlnv)
 	})
+}
+
+func TestMemoryDBValidate(t *testing.T) {
+	kvs := getTestKeyValues(100)
+	keys, nodes := getTestKeysAndValues(kvs)
+
+	// mndb := NewMemoryNodeDB()
+	// require.NoError(t, mndb.MultiPutNode(keys, nodes))
+
+	// _, err := mndb.ComputeRoot()
+	// require.NoError(t, err)
 }
