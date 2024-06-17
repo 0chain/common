@@ -356,12 +356,15 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 		}
 	}
 	iterate(root, 1)
-	logging.Logger.Debug("node key logs", zap.String("logs", strings.Join(nodeKeyLogs, "\n")))
+	// logging.Logger.Debug("node key logs", zap.String("logs", strings.Join(nodeKeyLogs, "\n")))
 	return mndb.iterate(context.TODO(), func(ctx context.Context, key Key, node Node) error {
 		if _, ok := nodes[StrKey(node.GetHashBytes())]; !ok {
-			Logger.Error("mndb validate",
+			logging.Logger.Error("mndb validate",
 				zap.String("node_type", fmt.Sprintf("%T", node)),
-				zap.String("node_key", node.GetHash()))
+				zap.String("node_key", node.GetHash()),
+				zap.Int("tree size", len(nodes)),
+				zap.Int("db size", len(mndb.Nodes)),
+				zap.String("tree", strings.Join(nodeKeyLogs, "\n")))
 			return common.NewError("nodes_outside_tree", "not all nodes are from the root")
 		}
 		return nil
