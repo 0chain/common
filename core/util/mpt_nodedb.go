@@ -352,7 +352,7 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 			}
 		default:
 			// fmt.Println("none F/E")
-			nodeKeyLogs = append(nodeKeyLogs, "none F/E")
+			nodeKeyLogs = append(nodeKeyLogs, "none F/E:", nodeImpl.GetHash())
 		}
 	}
 	iterate(root, 1)

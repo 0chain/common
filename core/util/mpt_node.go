@@ -531,8 +531,8 @@ func (fn *FullNode) Clone() statecache.Value {
 		)
 	}
 
-	// return clone
-	return cloneNode
+	return clone
+	// return cloneNode
 }
 
 func (fn *FullNode) CopyFrom(v interface{}) bool {
@@ -678,9 +678,12 @@ func (en *ExtensionNode) Decode(buf []byte) error {
 	if idx < 0 {
 		return ErrInvalidEncoding
 	}
-	en.Path = buf[:idx]
+	en.Path = make([]byte, idx)
+	copy(en.Path, buf[:idx])
+	// en.Path = buf[:idx]
 	buf = buf[idx+1:]
-	en.NodeKey = buf
+	en.NodeKey = make(Key, len(buf))
+	copy(en.NodeKey, buf)
 	return nil
 }
 
@@ -728,8 +731,8 @@ func (en *ExtensionNode) Clone() statecache.Value {
 		)
 	}
 
-	// return sclone
-	return cn
+	return sclone
+	// return cn
 }
 
 func (en *ExtensionNode) CopyFrom(v interface{}) bool {
