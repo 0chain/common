@@ -693,7 +693,7 @@ func (en *ExtensionNode) Clone() statecache.Value {
 
 	cn := en.CloneNode()
 
-	if bytes.Equal(sclone.Encode(), cn.Encode()) {
+	if !bytes.Equal(sclone.Encode(), cn.Encode()) {
 		logging.Logger.Error("[node key debug] See difference in ext clone",
 			zap.Any("origin", en),
 			zap.Any("strict clone", sclone),
