@@ -128,18 +128,27 @@ func (vn *ValueNode) CloneNode() Node {
 }
 
 func (vn *ValueNode) Clone() statecache.Value {
-	// vv := vn.Encode()
-	// if len(vv) == 0 {
-	// 	panic("clone ValueNode encode failed")
-	// }
+	vv := vn.Encode()
+	if len(vv) == 0 {
+		panic("clone ValueNode encode failed")
+	}
 
-	// clone, err := CreateNode(bytes.NewBuffer(vv))
-	// if err != nil {
-	// 	panic(fmt.Errorf("clone ValueNode decode failed: %v", err))
-	// }
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
+		panic(fmt.Errorf("clone ValueNode decode failed: %v", err))
+	}
 
-	// return clone
-	return vn.CloneNode()
+	cloneNode := vn.CloneNode()
+	if !bytes.Equal(clone.Encode(), cloneNode.Encode()) {
+		logging.Logger.Error("[node key debug] See difference in value clone",
+			zap.Any("origin", vn),
+			zap.Any("strict clone", clone),
+			zap.Any("clone", cloneNode),
+		)
+	}
+
+	return clone
+	// return vn.CloneNode()
 }
 
 func (vn *ValueNode) CopyFrom(v interface{}) bool {
