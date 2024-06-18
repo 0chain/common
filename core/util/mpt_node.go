@@ -681,18 +681,27 @@ func (en *ExtensionNode) CloneNode() Node {
 // }
 
 func (en *ExtensionNode) Clone() statecache.Value {
-	// vv := en.Encode()
-	// if len(vv) == 0 {
-	// 	panic("clone ExtensionNode encode failed")
-	// }
+	vv := en.Encode()
+	if len(vv) == 0 {
+		panic("clone ExtensionNode encode failed")
+	}
 
-	// clone, err := CreateNode(bytes.NewBuffer(vv))
-	// if err != nil {
-	// 	panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
-	// }
+	sclone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
+		panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
+	}
 
-	// return clone
-	return en.CloneNode()
+	cn := en.CloneNode()
+
+	if bytes.Equal(sclone.Encode(), cn.Encode()) {
+		logging.Logger.Error("[node key debug] See difference in ext clone",
+			zap.Any("origin", en),
+			zap.Any("strict clone", sclone),
+			zap.Any("clone", cn),
+		)
+	}
+
+	return sclone
 }
 
 func (en *ExtensionNode) CopyFrom(v interface{}) bool {
