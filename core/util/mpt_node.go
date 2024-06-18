@@ -328,18 +328,27 @@ func (ln *LeafNode) CloneNode() Node {
 }
 
 func (ln *LeafNode) Clone() statecache.Value {
-	// vv := ln.Encode()
-	// if len(vv) == 0 {
-	// 	panic("clone LeafNode encode failed")
-	// }
+	vv := ln.Encode()
+	if len(vv) == 0 {
+		panic("clone LeafNode encode failed")
+	}
 
-	// clone, err := CreateNode(bytes.NewBuffer(vv))
-	// if err != nil {
-	// 	panic(fmt.Errorf("clone LeafNode create node failed: %v", err))
-	// }
+	clone, err := CreateNode(bytes.NewBuffer(vv))
+	if err != nil {
+		panic(fmt.Errorf("clone LeafNode create node failed: %v", err))
+	}
 
-	// return clone
-	return ln.CloneNode()
+	cloneNode := ln.CloneNode()
+	if !bytes.Equal(clone.Encode(), cloneNode.Encode()) {
+		logging.Logger.Error("[node key debug] See difference in leaf clone",
+			zap.Any("origin", ln),
+			zap.Any("strict clone", clone),
+			zap.Any("clone", cloneNode),
+		)
+	}
+
+	return clone
+	// return ln.CloneNode()
 }
 
 func (ln *LeafNode) CopyFrom(v interface{}) bool {
