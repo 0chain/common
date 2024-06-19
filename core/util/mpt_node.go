@@ -138,17 +138,7 @@ func (vn *ValueNode) Clone() statecache.Value {
 		panic(fmt.Errorf("clone ValueNode decode failed: %v", err))
 	}
 
-	cloneNode := vn.CloneNode()
-	if !bytes.Equal(clone.Encode(), cloneNode.Encode()) {
-		logging.Logger.Error("[node key debug] See difference in value clone",
-			zap.Any("origin", vn),
-			zap.Any("strict clone", clone),
-			zap.Any("clone", cloneNode),
-		)
-	}
-
 	return clone
-	// return vn.CloneNode()
 }
 
 func (vn *ValueNode) CopyFrom(v interface{}) bool {
@@ -347,17 +337,7 @@ func (ln *LeafNode) Clone() statecache.Value {
 		panic(fmt.Errorf("clone LeafNode create node failed: %v", err))
 	}
 
-	cloneNode := ln.CloneNode()
-	if !bytes.Equal(clone.Encode(), cloneNode.Encode()) {
-		logging.Logger.Error("[node key debug] See difference in leaf clone",
-			zap.Any("origin", ln),
-			zap.Any("strict clone", clone),
-			zap.Any("clone", cloneNode),
-		)
-	}
-
 	return clone
-	// return ln.CloneNode()
 }
 
 func (ln *LeafNode) CopyFrom(v interface{}) bool {
@@ -522,17 +502,7 @@ func (fn *FullNode) Clone() statecache.Value {
 		panic(fmt.Errorf("clone FullNode decode failed: %v", err))
 	}
 
-	cloneNode := fn.CloneNode()
-	if !bytes.Equal(clone.Encode(), cloneNode.Encode()) {
-		logging.Logger.Error("[node key debug] See difference in full clone",
-			zap.Any("origin", fn),
-			zap.Any("strict clone", clone),
-			zap.Any("clone", cloneNode),
-		)
-	}
-
 	return clone
-	// return cloneNode
 }
 
 func (fn *FullNode) CopyFrom(v interface{}) bool {
@@ -696,20 +666,6 @@ func (en *ExtensionNode) CloneNode() Node {
 	return clone
 }
 
-// func (en *ExtensionNode) Clone() statecache.Value {
-// 	vv := en.Encode()
-// 	if len(vv) == 0 {
-// 		panic("clone ExtensionNode encode failed")
-// 	}
-
-// 	clone, err := CreateNode(bytes.NewBuffer(vv))
-// 	if err != nil {
-// 		panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
-// 	}
-
-// 	return clone
-// }
-
 func (en *ExtensionNode) Clone() statecache.Value {
 	vv := en.Encode()
 	if len(vv) == 0 {
@@ -721,18 +677,7 @@ func (en *ExtensionNode) Clone() statecache.Value {
 		panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
 	}
 
-	cn := en.CloneNode()
-
-	if !bytes.Equal(sclone.Encode(), cn.Encode()) {
-		logging.Logger.Error("[node key debug] See difference in ext clone",
-			zap.Any("origin", en),
-			zap.Any("strict clone", sclone),
-			zap.Any("clone", cn),
-		)
-	}
-
 	return sclone
-	// return cn
 }
 
 func (en *ExtensionNode) CopyFrom(v interface{}) bool {
