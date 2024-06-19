@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
-	"strings"
 	"sync"
 
 	"github.com/0chain/common/core/common"
@@ -95,13 +94,13 @@ func (mndb *MemoryNodeDB) getNode(key Key) (Node, error) {
 // unsafe
 func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
 	nd := node.CloneNode()
-	// if DebugMPTNode {
-	if !bytes.Equal(key, nd.GetHashBytes()) {
-		logging.Logger.Error("[node key debug] MPT - put node key not match",
-			zap.String("key", ToHex(key)),
-			zap.String("cloned node", ToHex(nd.GetHashBytes())),
-			zap.String("node", ToHex(node.GetHashBytes())))
-		// }
+	if DebugMPTNode {
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("[node key debug] MPT - put node key not match",
+				zap.String("key", ToHex(key)),
+				zap.String("cloned node", ToHex(nd.GetHashBytes())),
+				zap.String("node", ToHex(node.GetHashBytes())))
+		}
 	}
 
 	mndb.Nodes[StrKey(key)] = nd
@@ -315,59 +314,37 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 	nodes := map[StrKey]Node{
 		StrKey(root.GetHashBytes()): root,
 	}
-	var nodeKeyLogs []string
-	var iterate func(node Node, depth int)
-	iterate = func(node Node, depth int) {
-		dashes := make([]string, depth)
-		for i := 0; i < depth; i++ {
-			dashes[i] = "-"
-		}
-		indent := strings.Join(dashes, "")
+	var iterate func(node Node)
+	iterate = func(node Node) {
 		switch nodeImpl := node.(type) {
 		case *FullNode:
-			kl := indent + "F:" + nodeImpl.GetHash()
-			nodeKeyLogs = append(nodeKeyLogs, kl)
 			for _, ckey := range nodeImpl.Children {
 				if ckey != nil {
 					cnode, err := mndb.getNode(ckey)
 					if err == nil {
-						if !bytes.Equal(ckey, cnode.GetHashBytes()) {
-							logging.Logger.Error("[node key debug] validate - ckey not match",
-								zap.String("ckey", ToHex(ckey)),
-								zap.String("cnode", ToHex(cnode.GetHashBytes())))
-						}
 						nodes[StrKey(ckey)] = cnode
-						iterate(cnode, depth+1)
+						iterate(cnode)
 					}
 				}
 			}
 		case *ExtensionNode:
-			kl := indent + "E:" + nodeImpl.GetHash()
-			nodeKeyLogs = append(nodeKeyLogs, kl)
 			ckey := nodeImpl.NodeKey
 			cnode, err := mndb.getNode(ckey)
 			if err == nil {
 				nodes[StrKey(ckey)] = cnode
-				iterate(cnode, depth+1)
+				iterate(cnode)
 			}
-		default:
-			// fmt.Println("none F/E")
-			nodeKeyLogs = append(nodeKeyLogs, "none F/E:", nodeImpl.GetHash())
 		}
 	}
-	iterate(root, 1)
-	// logging.Logger.Debug("node key logs", zap.String("logs", strings.Join(nodeKeyLogs, "\n")))
+	iterate(root)
 	return mndb.iterate(context.TODO(), func(ctx context.Context, key Key, node Node) error {
 		if _, ok := nodes[StrKey(node.GetHashBytes())]; !ok {
 			logging.Logger.Error("mndb validate",
 				zap.String("node_type", fmt.Sprintf("%T", node)),
 				zap.String("node_key", node.GetHash()),
 				zap.Int("tree size", len(nodes)),
-				zap.Int("db size", len(mndb.Nodes)),
-				zap.String("tree", strings.Join(nodeKeyLogs, "\n")))
-			// TODO: add it back after debugging
+				zap.Int("db size", len(mndb.Nodes)))
 			return common.NewError("nodes_outside_tree", "not all nodes are from the root")
-			// return nil
 		}
 		return nil
 	})
@@ -448,13 +425,13 @@ func (lndb *LevelNodeDB) getNode(key Key) (Node, error) {
 // unsafe
 func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
 	nd := node.CloneNode()
-	// if DebugMPTNode {
-	if !bytes.Equal(key, nd.GetHashBytes()) {
-		logging.Logger.Error("[node key debug] MPT - put node key not match, level node",
-			zap.String("key", ToHex(key)),
-			zap.String("clone node_key", ToHex(nd.GetHashBytes())),
-			zap.String("node", ToHex(node.GetHashBytes())))
-		// }
+	if DebugMPTNode {
+		if !bytes.Equal(key, nd.GetHashBytes()) {
+			logging.Logger.Error("[node key debug] MPT - put node key not match, level node",
+				zap.String("key", ToHex(key)),
+				zap.String("clone node_key", ToHex(nd.GetHashBytes())),
+				zap.String("node", ToHex(node.GetHashBytes())))
+		}
 	}
 	return lndb.current.PutNode(key, node)
 }

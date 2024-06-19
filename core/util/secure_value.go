@@ -88,7 +88,6 @@ func (spv *SecureSerializableValue) MarshalMsg([]byte) ([]byte, error) {
 
 // UnmarshalMsg decodes node and implement msgp.Unmarshaler interface
 func (spv *SecureSerializableValue) UnmarshalMsg(buf []byte) ([]byte, error) {
-	// spv.Buffer = buf
 	spv.Buffer = make([]byte, len(buf))
 	copy(spv.Buffer, buf)
 	return nil, nil

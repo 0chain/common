@@ -1193,7 +1193,7 @@ func TestLevelNodeDB_Iterate(t *testing.T) {
 }
 
 func TestMemoryNodeDB_Validate(t *testing.T) {
-	// t.Skip("need protect DebugMPTNode against concurrent access")
+	t.Skip("need protect DebugMPTNode against concurrent access")
 	t.Parallel()
 
 	mndb := NewMemoryNodeDB()
