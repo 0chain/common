@@ -20,9 +20,10 @@ type Serializable interface {
 	Decode([]byte) error
 }
 
-//go:generate mockery --inpackage --case underscore --name MPTSerializable --testonly
 // MPTSerializable represents the interface for encoding/decoding
 // data that stores in MPT
+//
+//go:generate mockery --inpackage --case underscore --name MPTSerializable --testonly
 type MPTSerializable interface {
 	msgp.Marshaler
 	msgp.Unmarshaler
@@ -80,11 +81,14 @@ func (spv *SecureSerializableValue) GetHashBytes() []byte {
 
 // MarshalMsg encodes node and implement msg.Marshaler interface
 func (spv *SecureSerializableValue) MarshalMsg([]byte) ([]byte, error) {
-	return spv.Buffer, nil
+	buf := make([]byte, len(spv.Buffer))
+	copy(buf, spv.Buffer)
+	return buf, nil
 }
 
 // UnmarshalMsg decodes node and implement msgp.Unmarshaler interface
 func (spv *SecureSerializableValue) UnmarshalMsg(buf []byte) ([]byte, error) {
-	spv.Buffer = buf
+	spv.Buffer = make([]byte, len(buf))
+	copy(spv.Buffer, buf)
 	return nil, nil
 }

@@ -648,9 +648,12 @@ func (en *ExtensionNode) Decode(buf []byte) error {
 	if idx < 0 {
 		return ErrInvalidEncoding
 	}
-	en.Path = buf[:idx]
+	en.Path = make([]byte, idx)
+	copy(en.Path, buf[:idx])
+	// en.Path = buf[:idx]
 	buf = buf[idx+1:]
-	en.NodeKey = buf
+	en.NodeKey = make(Key, len(buf))
+	copy(en.NodeKey, buf)
 	return nil
 }
 
@@ -669,12 +672,12 @@ func (en *ExtensionNode) Clone() statecache.Value {
 		panic("clone ExtensionNode encode failed")
 	}
 
-	clone, err := CreateNode(bytes.NewBuffer(vv))
+	sclone, err := CreateNode(bytes.NewBuffer(vv))
 	if err != nil {
 		panic(fmt.Errorf("clone ExtensionNode decode failed: %v", err))
 	}
 
-	return clone
+	return sclone
 }
 
 func (en *ExtensionNode) CopyFrom(v interface{}) bool {

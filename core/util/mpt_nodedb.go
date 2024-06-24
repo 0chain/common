@@ -96,9 +96,10 @@ func (mndb *MemoryNodeDB) putNode(key Key, node Node) error {
 	nd := node.CloneNode()
 	if DebugMPTNode {
 		if !bytes.Equal(key, nd.GetHashBytes()) {
-			logging.Logger.Error("MPT - put node key not match",
+			logging.Logger.Error("[node key debug] MPT - put node key not match",
 				zap.String("key", ToHex(key)),
-				zap.String("node", ToHex(nd.GetHashBytes())))
+				zap.String("cloned node", ToHex(nd.GetHashBytes())),
+				zap.String("node", ToHex(node.GetHashBytes())))
 		}
 	}
 
@@ -338,9 +339,11 @@ func (mndb *MemoryNodeDB) validate(root Node) error {
 	iterate(root)
 	return mndb.iterate(context.TODO(), func(ctx context.Context, key Key, node Node) error {
 		if _, ok := nodes[StrKey(node.GetHashBytes())]; !ok {
-			Logger.Error("mndb validate",
+			logging.Logger.Error("mndb validate",
 				zap.String("node_type", fmt.Sprintf("%T", node)),
-				zap.String("node_key", node.GetHash()))
+				zap.String("node_key", node.GetHash()),
+				zap.Int("tree size", len(nodes)),
+				zap.Int("db size", len(mndb.Nodes)))
 			return common.NewError("nodes_outside_tree", "not all nodes are from the root")
 		}
 		return nil
@@ -424,9 +427,10 @@ func (lndb *LevelNodeDB) putNode(key Key, node Node) error {
 	nd := node.CloneNode()
 	if DebugMPTNode {
 		if !bytes.Equal(key, nd.GetHashBytes()) {
-			logging.Logger.Error("MPT - put node key not match, level node",
+			logging.Logger.Error("[node key debug] MPT - put node key not match, level node",
 				zap.String("key", ToHex(key)),
-				zap.String("node_key", ToHex(nd.GetHashBytes())))
+				zap.String("clone node_key", ToHex(nd.GetHashBytes())),
+				zap.String("node", ToHex(node.GetHashBytes())))
 		}
 	}
 	return lndb.current.PutNode(key, node)
