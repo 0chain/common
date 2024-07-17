@@ -67,7 +67,7 @@ type MerklePatriciaTrieI interface {
 
 	MergeMPTChanges(mpt2 MerklePatriciaTrieI) error
 	MergeChanges(newRoot Key, changes []*NodeChange, deletes []Node, startRoot Key) error
-	MergeDB(ndb NodeDB, root Key) error
+	MergeDB(ndb NodeDB, root Key, deadNodes []Node) error
 
 	Cache() *statecache.TransactionCache
 }
