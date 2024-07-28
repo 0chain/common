@@ -18,6 +18,9 @@ type Node interface {
 	CalcHash() []byte
 	Copy() Node
 	Weight() uint64
+	MarshalMsg(b []byte) ([]byte, error)
+	UnmarshalMsg(b []byte) ([]byte, error)
+	Msgsize() (s int)
 }
 
 type routingNode struct {
