@@ -2,9 +2,11 @@ package trie
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/logging"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var (
@@ -68,6 +70,7 @@ func find(n Node, key []byte) Node {
 			return find(nextNode, postfix)
 		case *valueNode:
 			curNode := n.(*valueNode)
+			fmt.Println("prefix: ", string(prefix), "postfix: ", string(postfix))
 			if Equal(prefix, postfix) {
 				return curNode
 			} else {
@@ -261,10 +264,6 @@ func (t *FixedLengthHexKeyMerkleTrie) FloorNodeValue(number uint64) (value []byt
 	return f.(*valueNode).value, nil
 }
 
-func (t *FixedLengthHexKeyMerkleTrie) Serialize() {
-
-}
-
 func aggregate(source [][]byte, n Node) [][]byte {
 	if n == nil {
 		return source
@@ -344,18 +343,97 @@ func aggregateHashes(source [][]byte, n Node) [][]byte {
 	if n == nil {
 		return source
 	}
-	switch n.(type) {
+	switch node := n.(type) {
 	case *nilNode:
 		return source
 	case *valueNode:
-		return append(source, n.(*valueNode).hash)
+		return append(source, node.hash)
 	case *routingNode:
-		source = append(source, n.(*routingNode).hash)
-		for _, child := range n.(*routingNode).Children {
+		source = append(source, node.hash)
+		for _, child := range node.Children {
 			source = aggregateHashes(source, child)
 		}
 		return source
 	}
 
 	return nil
+}
+
+func (t *FixedLengthHexKeyMerkleTrie) Serialize() ([]byte, error) {
+	persistTrie := &PersistTrie{}
+	err := t.persist(t.root, persistTrie)
+	if err != nil {
+		return nil, err
+	}
+	return cbor.Marshal(persistTrie)
+}
+
+func (t *FixedLengthHexKeyMerkleTrie) persist(node Node, persistTrie *PersistTrie) error {
+	if node == nil {
+		node = &nilNode{}
+	}
+	data, err := node.Serialize()
+	if err != nil {
+		return err
+	}
+	persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
+		Value: data,
+	})
+
+	switch n := node.(type) {
+	case *routingNode:
+		for _, child := range n.Children {
+			t.persist(child, persistTrie)
+		}
+	}
+	return nil
+}
+
+func (t *FixedLengthHexKeyMerkleTrie) Deserialize(data []byte) error {
+	persistTrie := &PersistTrie{}
+	dm, err := cbor.DecOptions{
+		MaxArrayElements: 1342177280,
+		MaxMapPairs:      1342177280,
+	}.DecMode()
+	if err != nil {
+		return err
+	}
+	err = dm.Unmarshal(data, persistTrie)
+	if err != nil {
+		return err
+	}
+	if len(persistTrie.Pairs) == 0 {
+		return nil
+	}
+	ind := 0
+	t.root, err = t.deserializeTrie(persistTrie.Pairs, &ind)
+	return err
+}
+
+func (t *FixedLengthHexKeyMerkleTrie) deserializeTrie(pairs []*PersistTriePair, ind *int) (Node, error) {
+	if len(pairs) == 0 {
+		return nil, nil
+	}
+	if *ind >= len(pairs) {
+		return nil, errors.New("index out of bounds")
+	}
+
+	node, err := DeserializeNode(pairs[*ind].Value)
+	if err != nil {
+		return nil, err
+	}
+	*ind++
+
+	switch n := node.(type) {
+	case *routingNode:
+		for i := 0; i < len(n.Children); i++ {
+			child, err := t.deserializeTrie(pairs, ind)
+			if err != nil {
+				return nil, err
+			}
+			n.Children[i] = child
+		}
+	}
+
+	return node, nil
 }

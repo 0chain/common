@@ -1,6 +1,7 @@
 package trie
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -21,19 +22,21 @@ func TestEmptyTrie(t *testing.T) {
 
 }
 
-func TestRichTrie(t *testing.T) {
+func TestInsertOrderSensitive(t *testing.T) {
 	trie := New()
 	trie.InsertOrUpdate([]byte("00000"), 10, []byte("hello"))
 	trie.InsertOrUpdate([]byte("00200"), 9, []byte("hi"))
-	trie.InsertOrUpdate([]byte("00300"), 8, []byte("hello"))
-	trie.InsertOrUpdate([]byte("00220"), 7, []byte("hello"))
-	trie.InsertOrUpdate([]byte("00000"), 6, []byte("hi"))
+	trie.InsertOrUpdate([]byte("01220"), 7, []byte("hello"))
+	trie.InsertOrUpdate([]byte("02220"), 7, []byte("hello"))
+	trie.InsertOrUpdate([]byte("12000"), 6, []byte("hi"))
 
-	val, found := trie.Get([]byte("00000"))
-
-	assert.True(t, found)
-	assert.Equal(t, []byte("hi"), val)
-
+	newTrie := New()
+	trie.InsertOrUpdate([]byte("12000"), 6, []byte("hi"))
+	trie.InsertOrUpdate([]byte("02220"), 7, []byte("hello"))
+	trie.InsertOrUpdate([]byte("01220"), 7, []byte("hello"))
+	trie.InsertOrUpdate([]byte("00200"), 9, []byte("hi"))
+	trie.InsertOrUpdate([]byte("00000"), 10, []byte("hello"))
+	assert.Equal(t, trie.root.Hash(), newTrie.root.Hash())
 }
 
 func TestDeleteTrie(t *testing.T) {
@@ -206,3 +209,113 @@ func TestFixedLengthHexKeyMerkleTrie_FloorNodeValue(t *testing.T) {
 	assert.Equal(t, "8", string(value))
 
 }
+
+func TestFixedLengthHexKeyMerkleTrie_Serialize(t *testing.T) {
+	trie := New()
+
+	trie.InsertOrUpdate([]byte("00000"), 10, []byte("10"))
+	trie.InsertOrUpdate([]byte("00200"), 9, []byte("9"))
+	trie.InsertOrUpdate([]byte("00300"), 8, []byte("8"))
+	trie.InsertOrUpdate([]byte("00220"), 7, []byte("7"))
+	data, err := trie.Serialize()
+	assert.NoError(t, err)
+	assert.Greater(t, len(data), 0)
+	newTrie := New()
+	err = newTrie.Deserialize(data)
+	assert.NoError(t, err)
+	fmt.Println("root1: ", trie.root, "root2: ", newTrie.root)
+	assert.Equal(t, hex.EncodeToString(trie.root.Hash()), hex.EncodeToString(newTrie.root.Hash()))
+}
+
+func BenchmarkSerialize(b *testing.B) {
+	// b.Run("SerializeDeserialize 100K", func(b *testing.B) {
+	trie := New()
+	keys := make([][]byte, 100000)
+	sha256 := sha256.New()
+	for i := 0; i < 100000; i++ {
+		sha256.Write([]byte(strconv.Itoa(i)))
+		key := sha256.Sum(nil)
+		sha256.Reset()
+		keys[i] = []byte(hex.EncodeToString(key))
+		trie.InsertOrUpdate(keys[i], uint64(i), []byte(strconv.Itoa(i)))
+	}
+	b.ResetTimer()
+	// now := time.Now()
+	for i := 0; i < b.N; i++ {
+		data, err := trie.Serialize()
+		assert.NoError(b, err)
+		// b.Log("serialize time: ", time.Since(now).Milliseconds())
+		// now = time.Now()
+		b.Log("data len: ", len(data))
+		newTrie := New()
+		err = newTrie.Deserialize(data)
+		assert.NoError(b, err)
+		// b.Log("deserialize time: ", time.Since(now).Milliseconds())
+		assert.Equal(b, hex.EncodeToString(trie.root.Hash()), hex.EncodeToString(newTrie.root.Hash()))
+	}
+	// })
+
+	// b.Run("SerializeDeserialize 500K", func(b *testing.B) {
+	// 	trie := New()
+	// 	keys := make([][]byte, 500000)
+	// 	sha256 := sha256.New()
+	// 	for i := 0; i < 500000; i++ {
+	// 		sha256.Write([]byte(strconv.Itoa(i)))
+	// 		key := sha256.Sum(nil)
+	// 		sha256.Reset()
+	// 		keys[i] = []byte(hex.EncodeToString(key))
+	// 		trie.InsertOrUpdate(keys[i], uint64(i), []byte(strconv.Itoa(i)))
+	// 	}
+	// 	b.ResetTimer()
+	// 	// now := time.Now()
+	// 	data, err := trie.Serialize()
+	// 	assert.NoError(b, err)
+	// 	// b.Log("serialize time: ", time.Since(now).Milliseconds())
+	// 	// now = time.Now()
+	// 	b.Log("data len: ", len(data))
+	// 	newTrie := New()
+	// 	err = newTrie.Deserialize(data)
+	// 	assert.NoError(b, err)
+	// 	// b.Log("deserialize time: ", time.Since(now).Milliseconds())
+	// 	assert.Equal(b, hex.EncodeToString(trie.root.Hash()), hex.EncodeToString(newTrie.root.Hash()))
+	// })
+
+	// b.Run("SerializeDeserialize 1M", func(b *testing.B) {
+	// 	trie := New()
+	// 	keys := make([][]byte, 1000000)
+	// 	sha256 := sha256.New()
+	// 	for i := 0; i < 1000000; i++ {
+	// 		sha256.Write([]byte(strconv.Itoa(i)))
+	// 		key := sha256.Sum(nil)
+	// 		sha256.Reset()
+	// 		keys[i] = []byte(hex.EncodeToString(key))
+	// 		trie.InsertOrUpdate(keys[i], uint64(i), []byte(strconv.Itoa(i)))
+	// 	}
+	// 	b.ResetTimer()
+	// 	// now := time.Now()
+	// 	data, err := trie.Serialize()
+	// 	assert.NoError(b, err)
+	// 	// b.Log("serialize time: ", time.Since(now).Milliseconds())
+	// 	// now = time.Now()
+	// 	b.Log("data len: ", len(data))
+	// 	newTrie := New()
+	// 	err = newTrie.Deserialize(data)
+	// 	assert.NoError(b, err)
+	// 	// b.Log("deserialize time: ", time.Since(now).Milliseconds())
+	// 	assert.Equal(b, hex.EncodeToString(trie.root.Hash()), hex.EncodeToString(newTrie.root.Hash()))
+	// })
+}
+
+// goos: linux
+// goarch: amd64
+// pkg: github.com/0chain/common/core/util/trie
+// cpu: 13th Gen Intel(R) Core(TM) i5-13400F
+// BenchmarkSerialize/SerializeDeserialize_100K-16                 1000000000               0.4087 ns/op
+// --- BENCH: BenchmarkSerialize/SerializeDeserialize_100K-16
+//     trie_test.go:247: data len:  15129091
+// BenchmarkSerialize/SerializeDeserialize_500K-16                        1        1861843864 ns/op
+// --- BENCH: BenchmarkSerialize/SerializeDeserialize_500K-16
+//     trie_test.go:272: data len:  73226557
+// BenchmarkSerialize/SerializeDeserialize_1M-16                          1        3921399288 ns/op
+// --- BENCH: BenchmarkSerialize/SerializeDeserialize_1M-16
+//     trie_test.go:297: data len:  149861461

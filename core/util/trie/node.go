@@ -1,11 +1,13 @@
 package trie
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/logging"
+	"github.com/fxamacker/cbor/v2"
 	"go.uber.org/zap"
 )
 
@@ -21,6 +23,7 @@ type Node interface {
 	MarshalMsg(b []byte) ([]byte, error)
 	UnmarshalMsg(b []byte) ([]byte, error)
 	Msgsize() (s int)
+	Serialize() ([]byte, error)
 }
 
 type routingNode struct {
@@ -56,7 +59,7 @@ func (r *routingNode) CalcHash() []byte {
 	m := []byte(strconv.FormatUint(r.weight, 10))
 	for _, child := range r.Children {
 		if child == nil {
-			continue
+			child = &nilNode{}
 		}
 		m = append(m, child.Hash()...)
 	}
@@ -67,6 +70,18 @@ func (r *routingNode) CalcHash() []byte {
 
 func (r *routingNode) Weight() uint64 {
 	return r.weight
+}
+
+func (r *routingNode) Serialize() ([]byte, error) {
+	persistBranchNode := PersistNodeBranch{}
+	persistBranchNode.Key = r.key
+	persistBranchNode.Weight = r.weight
+	persistBranchNode.Hash = r.hash
+	pNode := PersistNodeBase{
+		Branch: &persistBranchNode,
+	}
+
+	return cbor.Marshal(&pNode)
 }
 
 type valueNode struct {
@@ -107,6 +122,19 @@ func (v *valueNode) Weight() uint64 {
 	return v.weight
 }
 
+func (v *valueNode) Serialize() ([]byte, error) {
+	pNode := PersistNodeBase{
+		Value: &PersistNodeValue{
+			Value:  v.value,
+			Key:    v.key,
+			Weight: v.weight,
+			Hash:   v.hash,
+		},
+	}
+
+	return cbor.Marshal(&pNode)
+}
+
 type nilNode struct {
 }
 
@@ -128,6 +156,41 @@ func (n *nilNode) CalcHash() []byte {
 
 func (n *nilNode) Weight() uint64 {
 	return 0
+}
+
+func (n *nilNode) Serialize() ([]byte, error) {
+	pNode := PersistNodeBase{
+		NilNode: &PersistNilNode{},
+	}
+
+	return cbor.Marshal(&pNode)
+}
+
+func DeserializeNode(data []byte) (Node, error) {
+	pNode := PersistNodeBase{}
+	err := cbor.Unmarshal(data, &pNode)
+	if err != nil {
+		return nil, err
+	}
+	if pNode.Branch != nil {
+		branchNode := routingNode{}
+		branchNode.key = pNode.Branch.Key
+		branchNode.weight = pNode.Branch.Weight
+		branchNode.hash = pNode.Branch.Hash
+		return &branchNode, nil
+	}
+	if pNode.Value != nil {
+		valueNode := valueNode{}
+		valueNode.key = pNode.Value.Key
+		valueNode.value = pNode.Value.Value
+		valueNode.weight = pNode.Value.Weight
+		valueNode.hash = pNode.Value.Hash
+		return &valueNode, nil
+	}
+	if pNode.NilNode != nil {
+		return &nilNode{}, nil
+	}
+	return nil, errors.New("invalid node")
 }
 
 func findIndex(letter byte) int {
