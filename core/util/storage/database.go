@@ -3,7 +3,6 @@ package storage
 type StorageAdapter interface {
 	Get([]byte) ([]byte, error)
 	Put([]byte, []byte) error
-	Has([]byte) bool
 	Delete([]byte) error
 	Close()
 	NewBatch() Batcher

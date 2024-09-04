@@ -16,7 +16,7 @@ var (
 )
 
 const (
-	keyLength = 64
+	keyLength = 32
 )
 
 type WeightedMerkleTrie struct {
@@ -46,17 +46,18 @@ func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
 	if len(key) != keyLength {
 		return ErrInvalidKey
 	}
+	k := keybytesToHex(key)
 	if t.root == nil {
 		t.root = emptyNode
 	}
 	if len(value) != 0 {
-		_, n, err := t.insert(t.root, nil, key, &valueNode{value: value, weight: weight, dirty: true})
+		_, n, err := t.insert(t.root, nil, k, &valueNode{value: value, weight: weight, dirty: true})
 		if err != nil {
 			return err
 		}
 		t.root = n
 	} else {
-		_, n, err := t.delete(t.root, nil, key)
+		_, n, err := t.delete(t.root, nil, k)
 		if err != nil {
 			return err
 		}
@@ -101,8 +102,15 @@ func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (
 			return change, n, nil
 		}
 		branch := &routingNode{dirty: true, weight: n.Weight() + value.Weight()}
-		branch.Children[n.key[prefixLen]] = n.value
-		branch.Children[key[0]] = value
+		var err error
+		_, branch.Children[n.key[prefixLen]], err = t.insert(nil, append(prefix, n.key[:prefixLen+1]...), n.key[prefixLen+1:], n.value)
+		if err != nil {
+			return 0, nil, err
+		}
+		_, branch.Children[key[prefixLen]], err = t.insert(nil, append(prefix, key[:prefixLen+1]...), key[prefixLen+1:], value)
+		if err != nil {
+			return 0, nil, err
+		}
 		if prefixLen == 0 {
 			return value.Weight(), branch, nil
 		}
@@ -235,7 +243,8 @@ func (t *WeightedMerkleTrie) resolveHashNode(node *hashNode) (Node, error) {
 
 // Put puts a key-value pair into the trie
 func (t *WeightedMerkleTrie) Put(key, value []byte, weight uint64) error {
-	_, newNode, err := t.insert(t.root, nil, key, &valueNode{value: value, weight: weight, dirty: true})
+	k := keybytesToHex(key)
+	_, newNode, err := t.insert(t.root, nil, k, &valueNode{value: value, weight: weight, dirty: true})
 	if err != nil {
 		return err
 	}
@@ -291,6 +300,13 @@ func (t *WeightedMerkleTrie) Root() []byte {
 	return t.root.Hash()
 }
 
+func (t *WeightedMerkleTrie) Weight() uint64 {
+	if t.root == nil {
+		return 0
+	}
+	return t.root.Weight()
+}
+
 // Commit collapses the trie to the specified level and returns the batcher and the deleted nodes, it is the caller's responsibility to commit the batch
 func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) {
 	batcher := t.db.NewBatch()
@@ -306,8 +322,8 @@ func (t *WeightedMerkleTrie) Delete(key []byte) error {
 	if t.root == nil {
 		return ErrNotFound
 	}
-
-	_, node, err := t.delete(t.root, nil, key)
+	k := keybytesToHex(key)
+	_, node, err := t.delete(t.root, nil, k)
 	if err != nil {
 		return err
 	}
@@ -388,17 +404,14 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 }
 
 func commonPrefix(a, b []byte) int {
-	minLen := len(a)
-	if len(b) < minLen {
-		minLen = len(b)
+	var i, length = 0, len(a)
+	if len(b) < length {
+		length = len(b)
 	}
-	if minLen == 0 {
-		return 0
-	}
-	for i := 0; i < minLen; i++ {
+	for ; i < length; i++ {
 		if a[i] != b[i] {
-			return i
+			break
 		}
 	}
-	return minLen
+	return i
 }

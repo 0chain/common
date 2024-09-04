@@ -11,7 +11,7 @@ func (t *WeightedMerkleTrie) GetBlockProof(block uint64) (key, proof []byte, err
 	if t.root == nil {
 		return nil, nil, ErrNotFound
 	}
-	if block >= t.root.Weight() {
+	if block > t.root.Weight() {
 		return nil, nil, ErrWeightNotInRange
 	}
 	persistTrie := &PersistTrie{}
@@ -22,6 +22,7 @@ func (t *WeightedMerkleTrie) GetBlockProof(block uint64) (key, proof []byte, err
 		}
 		return nil, nil, err
 	}
+	key = hexToKeybytes(key)
 	proof, err = cbor.Marshal(persistTrie)
 	if err != nil {
 		return nil, nil, err
@@ -54,7 +55,7 @@ func (t *WeightedMerkleTrie) getBlockProof(node Node, block uint64, prefix []byt
 			block -= child.Weight()
 		}
 	case *shortNode:
-		if block >= n.Weight() {
+		if block > n.Weight() {
 			return nil, ErrWeightNotInRange
 		}
 		return t.getBlockProof(n.value, block, append(prefix, n.key...), persistTrie)

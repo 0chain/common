@@ -2,7 +2,9 @@ package wmpt
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/cockroachdb/pebble"
 	"github.com/fxamacker/cbor/v2"
@@ -50,7 +52,8 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 	// 	n.dirty = true
 	// }
 	for _, key := range keys {
-		_, err := t.markToCollect(t.root, key, 0)
+		k := keybytesToHex(key)
+		_, err := t.markToCollect(t.root, k, 0)
 		if err != nil {
 			if errors.Is(err, pebble.ErrNotFound) {
 				err = ErrNotFound
@@ -188,6 +191,7 @@ func (t *WeightedMerkleTrie) deserializeTrie(pairs []*PersistTriePair, ind *int)
 			return nil, err
 		}
 		if !bytes.Equal(n.value.Hash(), child.Hash()) {
+			fmt.Println(hex.EncodeToString(n.value.Hash()), hex.EncodeToString(child.Hash()), hex.EncodeToString(n.key))
 			return nil, errors.New("child hash mismatch")
 		}
 		n.value = child

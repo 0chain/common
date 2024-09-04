@@ -286,7 +286,7 @@ func (s *shortNode) CalcHash() []byte {
 	var m []byte
 	m = append(m, s.key...)
 	if s.value != nil {
-		m = append(m, s.value.Hash()...)
+		m = append(m, s.value.CalcHash()...)
 	}
 	s.hash = encryption.RawHash(m)
 	s.dirty = false
@@ -396,4 +396,28 @@ func DeserializeNode(data []byte) (Node, error) {
 	}
 
 	return nil, errors.New("invalid node")
+}
+
+func keybytesToHex(str []byte) []byte {
+	l := len(str) * 2
+	var nibbles = make([]byte, l)
+	for i, b := range str {
+		nibbles[i*2] = b / 16
+		nibbles[i*2+1] = b % 16
+	}
+	return nibbles
+}
+
+// hexToKeybytes turns hex nibbles into key bytes.
+// This can only be used for keys of even length.
+func hexToKeybytes(hex []byte) []byte {
+	key := make([]byte, len(hex)/2)
+	decodeNibbles(hex, key)
+	return key
+}
+
+func decodeNibbles(nibbles []byte, bytes []byte) {
+	for bi, ni := 0, 0; ni < len(nibbles); bi, ni = bi+1, ni+2 {
+		bytes[bi] = nibbles[ni]<<4 | nibbles[ni+1]
+	}
 }

@@ -41,6 +41,10 @@ func (p *PebbleAdapter) Put(key []byte, value []byte) error {
 	return p.db.Set(key, value, pebble.NoSync)
 }
 
+func (p *PebbleAdapter) Delete(key []byte) error {
+	return p.db.Delete(key, pebble.NoSync)
+}
+
 type batch struct {
 	b *pebble.Batch
 }

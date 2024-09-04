@@ -2,8 +2,12 @@ package wmpt
 
 import (
 	"crypto/sha256"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
+	"github.com/0chain/common/core/util/storage"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,4 +17,124 @@ func TestSerializeHashNode(t *testing.T) {
 	data, err := node.Serialize()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data))
+}
+
+func TestInsertOrderSensitive(t *testing.T) {
+	// pebDir := "/pebble/storage"
+	// os.RemoveAll(pebDir)
+	// os.MkdirAll(pebDir, 0777)
+	// defer os.RemoveAll(pebDir)
+	// db, err := storage.NewPebbleAdapter(pebDir)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	trie := New(nil, nil)
+	trie.Update(keys[0], []byte("hello"), 10)
+	trie.Update(keys[1], []byte("hi"), 9)
+	trie.Update(keys[2], []byte("hello"), 7)
+	trie.Update(keys[3], []byte("hello"), 7)
+	trie.Update(keys[4], []byte("hi"), 6)
+
+	newTrie := New(nil, nil)
+	newTrie.Update(keys[4], []byte("hi"), 6)
+	newTrie.Update(keys[3], []byte("hello"), 7)
+	newTrie.Update(keys[2], []byte("hello"), 7)
+	newTrie.Update(keys[1], []byte("hi"), 9)
+	newTrie.Update(keys[0], []byte("hello"), 10)
+	assert.Equal(t, trie.root.Weight(), newTrie.root.Weight())
+	assert.Equal(t, trie.root.CalcHash(), newTrie.root.CalcHash())
+}
+
+func TestTrieUpdate(t *testing.T) {
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	trie := New(nil, nil)
+	trie.Update(keys[0], []byte("hello"), 10)
+	trie.Update(keys[0], []byte("hi"), 9)
+	trie.root.CalcHash()
+	assert.Equal(t, trie.root.Weight(), uint64(9))
+}
+
+func TestEmptyTrie(t *testing.T) {
+	trie := New(nil, nil)
+	assert.Equal(t, trie.root.CalcHash(), emptyState)
+	assert.Equal(t, trie.root.Weight(), uint64(0))
+}
+
+func TestTrieDelete(t *testing.T) {
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	trie := New(nil, nil)
+	trie.Update(keys[0], []byte("hello"), 10)
+	trie.Update(keys[1], []byte("hi"), 9)
+	trie.Update(keys[2], []byte("hello"), 7)
+	trie.Update(keys[3], []byte("hello"), 7)
+	trie.root.CalcHash()
+	assert.Equal(t, trie.root.Weight(), uint64(33))
+	h1 := trie.root.CalcHash()
+	trie.Update(keys[3], nil, 0)
+	assert.Equal(t, trie.root.Weight(), uint64(26))
+	trie.Update(keys[3], []byte("hello"), 7)
+	h2 := trie.root.CalcHash()
+	assert.Equal(t, trie.root.Weight(), uint64(33))
+	assert.Equal(t, h1, h2)
+}
+
+func TestTrieCommit(t *testing.T) {
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	trie := New(nil, nil)
+	trie.Update(keys[0], []byte("hello"), 10)
+	trie.Update(keys[1], []byte("hi"), 9)
+	trie.Update(keys[2], []byte("hello"), 7)
+	trie.Update(keys[3], []byte("hello"), 7)
+	trie.root.CalcHash()
+	wd, err := os.Getwd()
+	assert.NoError(t, err)
+	pebDir := filepath.Join(wd, "pebble_storage")
+	assert.NoError(t, os.RemoveAll(pebDir))
+	assert.NoError(t, os.MkdirAll(pebDir, 0777))
+	db, err := storage.NewPebbleAdapter(pebDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		db.Close()
+		os.RemoveAll(pebDir)
+	}()
+	dbTrie := New(nil, db)
+	dbTrie.Update(keys[0], []byte("hello"), 10)
+	dbTrie.Update(keys[1], []byte("hi"), 9)
+	dbTrie.Update(keys[2], []byte("hello"), 7)
+	dbTrie.Update(keys[3], []byte("hello"), 7)
+	batcher, err := dbTrie.Commit(0)
+	assert.NoError(t, err)
+	err = batcher.Commit(true)
+	assert.NoError(t, err)
+	assert.Equal(t, trie.root.Weight(), dbTrie.root.Weight())
+	assert.Equal(t, trie.root.Hash(), dbTrie.root.Hash())
+	dbTrie.DeleteNodes()
+	dbTrie.Update(keys[4], []byte("hi"), 6)
+	trie.Update(keys[4], []byte("hi"), 6)
+	batcher, err = dbTrie.Commit(0)
+	assert.NoError(t, err)
+	err = batcher.Commit(true)
+	assert.NoError(t, err)
+	dbTrie.DeleteNodes()
+	assert.Equal(t, trie.root.Weight(), dbTrie.root.Weight())
+	assert.Equal(t, trie.root.CalcHash(), dbTrie.root.Hash())
 }
