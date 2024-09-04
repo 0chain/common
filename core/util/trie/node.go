@@ -115,7 +115,7 @@ func (n *nilNode) Key() []byte {
 }
 
 func (n *nilNode) Hash() []byte {
-	return emptyState
+	return nil
 }
 
 func (n *nilNode) Copy() Node {
@@ -123,7 +123,7 @@ func (n *nilNode) Copy() Node {
 }
 
 func (n *nilNode) CalcHash() []byte {
-	return emptyState
+	return nil
 }
 
 func (n *nilNode) Weight() uint64 {

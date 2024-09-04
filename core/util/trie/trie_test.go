@@ -206,3 +206,29 @@ func TestFixedLengthHexKeyMerkleTrie_FloorNodeValue(t *testing.T) {
 	assert.Equal(t, "8", string(value))
 
 }
+
+func TestFixedLengthHexKeyMerkleTrie_Serialize(t *testing.T) {
+	trie := New()
+
+	trie.InsertOrUpdate([]byte("00000"), 10, []byte("10"))
+	trie.InsertOrUpdate([]byte("00200"), 9, []byte("9"))
+	trie.InsertOrUpdate([]byte("00300"), 8, []byte("8"))
+	trie.InsertOrUpdate([]byte("00220"), 7, []byte("7"))
+
+	hash := trie.Proof()
+	serialize, err := trie.Serialize()
+	assert.NoError(t, err)
+
+	println(string(serialize))
+
+	deserialize, err := Deserialize(serialize)
+	assert.NoError(t, err)
+
+	values2 := deserialize.Values()
+
+	for _, v := range values2 {
+		fmt.Println(string(v))
+	}
+
+	assert.Equal(t, hash, deserialize.Proof())
+}

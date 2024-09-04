@@ -13,6 +13,7 @@ var (
 
 	// emptyState is the known hash of an empty state trie entry.
 	emptyState = encryption.EmptyHashBytes
+	NIL        = &nilNode{}
 )
 
 //go:generate msgp -v -io=false -tests=false -unexported=true
@@ -30,7 +31,7 @@ func New() *FixedLengthHexKeyMerkleTrie {
 
 func (t *FixedLengthHexKeyMerkleTrie) Get(key []byte) (val []byte, found bool) {
 	n := find(t.root, key)
-	if n == nil {
+	if n == nil || n == NIL {
 		return nil, false
 	}
 	if curNode, ok := n.(*valueNode); ok {
@@ -73,6 +74,8 @@ func find(n Node, key []byte) Node {
 			} else {
 				return nil
 			}
+		case *nilNode:
+			return nil
 		}
 	}
 	return nil
@@ -111,7 +114,7 @@ func (t *FixedLengthHexKeyMerkleTrie) Copy() *FixedLengthHexKeyMerkleTrie {
 }
 
 func insert(n Node, key []byte, weight uint64, value []byte) (change uint64, newNode Node) {
-	if n == nil {
+	if n == NIL {
 		vNode := &valueNode{key: key, weight: weight, value: value}
 		vNode.CalcHash()
 		return weight, vNode
@@ -130,13 +133,12 @@ func insert(n Node, key []byte, weight uint64, value []byte) (change uint64, new
 		ind := findIndex(postfix[0])
 		nextNode := curNode.Children[ind]
 		c, newNode2 := insert(nextNode, postfix, weight, value)
-		if newNode2 != nil {
+		if newNode2 != NIL {
 			curNode.Children[ind] = newNode2
 			curNode.weight += c
 			curNode.CalcHash()
 			return c, curNode
 		}
-
 	case *valueNode:
 		current := n.(*valueNode)
 		if Equal(prefix, key) { //exact match, update value
@@ -146,7 +148,11 @@ func insert(n Node, key []byte, weight uint64, value []byte) (change uint64, new
 			current.CalcHash()
 			return c, current
 		} else { //split Node
-			rNode := &routingNode{key: prefix}
+			nodes := [16]Node{}
+			for i := range nodes {
+				nodes[i] = NIL
+			}
+			rNode := &routingNode{key: prefix, Children: nodes}
 			postfixS := n.Key()[len(prefix):]
 
 			ind := findIndex(postfix[0])
@@ -164,7 +170,7 @@ func insert(n Node, key []byte, weight uint64, value []byte) (change uint64, new
 		panic("wrong Node type")
 	}
 
-	return 0, nil
+	return 0, NIL
 }
 
 func del(n Node, key []byte) (propagate bool, node Node) {
@@ -182,22 +188,22 @@ func del(n Node, key []byte) (propagate bool, node Node) {
 		curNode := n.(*routingNode)
 		ind := findIndex(postfix[0])
 		nextNode := curNode.Children[ind]
-		if nextNode == nil {
-			return false, nil
+		if nextNode == NIL {
+			return false, NIL
 		}
 
 		prop, deleted := del(nextNode, postfix)
-		if deleted == nil {
-			return false, nil
+		if deleted == NIL {
+			return false, NIL
 		}
 
 		curNode.weight -= deleted.Weight()
 
 		if prop {
-			curNode.Children[ind] = nil
+			curNode.Children[ind] = NIL
 			empty := true
 			for _, child := range curNode.Children {
-				if child != nil {
+				if child != NIL {
 					empty = false
 				}
 			}
@@ -212,13 +218,13 @@ func del(n Node, key []byte) (propagate bool, node Node) {
 		if Equal(prefix, key) { //exact match, delete value
 			return true, n
 		} else { //split Node
-			return false, nil
+			return false, NIL
 		}
 	default:
 		panic("wrong Node type")
 	}
 
-	return false, nil
+	return false, NIL
 }
 
 func Equal(a, b []byte) bool {
@@ -261,12 +267,18 @@ func (t *FixedLengthHexKeyMerkleTrie) FloorNodeValue(number uint64) (value []byt
 	return f.(*valueNode).value, nil
 }
 
-func (t *FixedLengthHexKeyMerkleTrie) Serialize() {
+func (t *FixedLengthHexKeyMerkleTrie) Serialize() ([]byte, error) {
+	return t.MarshalMsg(nil)
+}
 
+func Deserialize(b []byte) (*FixedLengthHexKeyMerkleTrie, error) {
+	t := &FixedLengthHexKeyMerkleTrie{root: &routingNode{}}
+	_, err := t.UnmarshalMsg(b)
+	return t, err
 }
 
 func aggregate(source [][]byte, n Node) [][]byte {
-	if n == nil {
+	if n == NIL {
 		return source
 	}
 	switch n.(type) {
@@ -291,7 +303,7 @@ func (t *FixedLengthHexKeyMerkleTrie) Weights() (values []uint64) {
 }
 
 func aggregateWeights(source []uint64, n Node) []uint64 {
-	if n == nil {
+	if n == NIL {
 		return source
 	}
 	switch n.(type) {
@@ -317,18 +329,18 @@ func (t *FixedLengthHexKeyMerkleTrie) Hashes() (values [][]byte) {
 }
 
 func floorNode(n Node, number uint64) Node {
-	if n == nil {
-		return nil
+	if n == NIL {
+		return NIL
 	}
 	switch n.(type) {
 	case *nilNode:
-		return nil
+		return NIL
 	case *valueNode:
 		return n
 	case *routingNode:
 		r := n.(*routingNode).Children
 		for _, child := range r {
-			if child == nil {
+			if child == NIL {
 				continue
 			}
 			if number < child.Weight() {
@@ -337,11 +349,11 @@ func floorNode(n Node, number uint64) Node {
 			number -= child.Weight()
 		}
 	}
-	return nil
+	return NIL
 }
 
 func aggregateHashes(source [][]byte, n Node) [][]byte {
-	if n == nil {
+	if n == NIL {
 		return source
 	}
 	switch n.(type) {
