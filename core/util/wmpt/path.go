@@ -1,6 +1,7 @@
 package wmpt
 
 import (
+	"bytes"
 	"errors"
 
 	"github.com/cockroachdb/pebble"
@@ -49,7 +50,7 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 	// 	n.dirty = true
 	// }
 	for _, key := range keys {
-		_, err := t.markToCollect(t.root, key)
+		_, err := t.markToCollect(t.root, key, 0)
 		if err != nil {
 			if errors.Is(err, pebble.ErrNotFound) {
 				err = ErrNotFound
@@ -64,44 +65,9 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 	return cbor.Marshal(persistTrie)
 }
 
-func (t *WeightedMerkleTrie) markToCollect(node Node, key []byte) (Node, error) {
-	if node == nil {
-		return nil, nil
-	}
-
-	switch n := node.(type) {
-	case *routingNode:
-		prefix := commonPrefix(node.Key(), key)
-		n.toCollect = true
-		if len(prefix) != len(n.key) {
-			return nil, nil
-		}
-		postfix := key[len(prefix):]
-		expandedNode, err := t.markToCollect(n.Children[postfix[0]], postfix[1:])
-		if err != nil {
-			return nil, err
-		}
-		if expandedNode != nil {
-			n.Children[postfix[0]] = expandedNode
-		}
-		return n, nil
-	case *hashNode:
-		data, err := t.db.Get(n.Hash())
-		if err != nil {
-			return nil, err
-		}
-		loadedNode, err := DeserializeNode(data)
-		if err != nil {
-			return nil, err
-		}
-		return t.markToCollect(loadedNode, key)
-	}
-	return node, nil
-}
-
 func (t *WeightedMerkleTrie) collectNodes(node Node, persistTrie *PersistTrie) error {
 	if node == nil {
-		node = emptyNode
+		return nil
 	}
 
 	if !node.ToCollect() {
@@ -126,8 +92,45 @@ func (t *WeightedMerkleTrie) collectNodes(node Node, persistTrie *PersistTrie) e
 		for _, child := range n.Children {
 			t.collectNodes(child, persistTrie)
 		}
+	case *shortNode:
+		t.collectNodes(n.value, persistTrie)
 	}
 	return nil
+}
+
+func (t *WeightedMerkleTrie) markToCollect(node Node, key []byte, pos int) (Node, error) {
+	if node == nil {
+		return nil, nil
+	}
+
+	switch n := node.(type) {
+	case *routingNode:
+		child, err := t.markToCollect(n.Children[key[pos]], key, pos+1)
+		if err != nil {
+			return nil, err
+		}
+		n.Children[key[pos]] = child
+		n.toCollect = true
+		return n, nil
+	case *shortNode:
+		n.toCollect = true
+		if len(key)-pos < len(n.key) || !bytes.Equal(n.key, key[pos:pos+len(n.key)]) {
+			return n, nil
+		}
+		child, err := t.markToCollect(n.value, key, pos+len(n.key))
+		if err != nil {
+			return nil, err
+		}
+		n.value = child
+		return n, nil
+	case *hashNode:
+		rn, err := t.resolveHashNode(n)
+		if err != nil {
+			return nil, err
+		}
+		return t.markToCollect(rn, key, pos)
+	}
+	return node, nil
 }
 
 func (t *WeightedMerkleTrie) Deserialize(data []byte) error {
@@ -167,13 +170,27 @@ func (t *WeightedMerkleTrie) deserializeTrie(pairs []*PersistTriePair, ind *int)
 
 	switch n := node.(type) {
 	case *routingNode:
-		for i := 0; i < len(n.Children); i++ {
-			child, err := t.deserializeTrie(pairs, ind)
-			if err != nil {
-				return nil, err
+		for i := 0; i < branchNodeLength; i++ {
+			if n.Children[i] != nil {
+				child, err := t.deserializeTrie(pairs, ind)
+				if err != nil {
+					return nil, err
+				}
+				if !bytes.Equal(n.Children[i].Hash(), child.Hash()) {
+					return nil, errors.New("child hash mismatch")
+				}
+				n.Children[i] = child
 			}
-			n.Children[i] = child
 		}
+	case *shortNode:
+		child, err := t.deserializeTrie(pairs, ind)
+		if err != nil {
+			return nil, err
+		}
+		if !bytes.Equal(n.value.Hash(), child.Hash()) {
+			return nil, errors.New("child hash mismatch")
+		}
+		n.value = child
 	}
 	return node, nil
 }

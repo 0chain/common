@@ -1,7 +1,6 @@
 package wmpt
 
 import (
-	"bytes"
 	"errors"
 
 	"github.com/0chain/common/core/encryption"
@@ -13,13 +12,19 @@ var (
 	emptyState          = encryption.EmptyHashBytes
 	ErrNotFound         = errors.New("not found")
 	ErrWeightNotInRange = errors.New("weight not in range")
+	ErrInvalidKey       = errors.New("invalid key")
+)
+
+const (
+	keyLength = 64
 )
 
 type WeightedMerkleTrie struct {
-	root    Node
-	db      storage.StorageAdapter
-	oldRoot hashNode
-	deleted [][]byte
+	root        Node
+	db          storage.StorageAdapter
+	oldRoot     hashNode
+	deleted     [][]byte
+	tempDeleted [][]byte
 }
 
 // New creates a new weighted merkle trie
@@ -30,9 +35,207 @@ func New(root Node, db storage.StorageAdapter) *WeightedMerkleTrie {
 	return &WeightedMerkleTrie{db: db, root: root}
 }
 
+func (t *WeightedMerkleTrie) CopyRoot() Node {
+	if t.root == nil {
+		return emptyNode
+	}
+	return t.root.Copy()
+}
+
+func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
+	if len(key) != keyLength {
+		return ErrInvalidKey
+	}
+	if t.root == nil {
+		t.root = emptyNode
+	}
+	if len(value) != 0 {
+		_, n, err := t.insert(t.root, nil, key, &valueNode{value: value, weight: weight, dirty: true})
+		if err != nil {
+			return err
+		}
+		t.root = n
+	} else {
+		_, n, err := t.delete(t.root, nil, key)
+		if err != nil {
+			return err
+		}
+		t.root = n
+		if t.root == nil {
+			t.root = emptyNode
+		}
+	}
+	return nil
+}
+
+func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (uint64, Node, error) {
+	if len(key) == 0 {
+		if v, ok := node.(*valueNode); ok {
+			v.dirty = true
+			c := value.Weight() - v.weight
+			v.weight = value.Weight()
+			return c, v, nil
+		}
+		return value.Weight(), value, nil
+	}
+
+	switch n := node.(type) {
+	case *routingNode:
+		n.dirty = true
+		change, newNode, err := t.insert(n.Children[key[0]], append(prefix, key[0]), key[1:], value)
+		if err != nil {
+			return 0, nil, err
+		}
+		n.weight += change
+		n.Children[key[0]] = newNode
+		return change, n, nil
+	case *shortNode:
+		n.dirty = true
+		prefixLen := commonPrefix(n.key, key)
+		if prefixLen == len(n.key) {
+			change, newNode, err := t.insert(n.value, append(prefix, key[:prefixLen]...), key[prefixLen:], value)
+			if err != nil {
+				return 0, nil, err
+			}
+			n.value = newNode
+			return change, n, nil
+		}
+		branch := &routingNode{dirty: true, weight: n.Weight() + value.Weight()}
+		branch.Children[n.key[prefixLen]] = n.value
+		branch.Children[key[0]] = value
+		if prefixLen == 0 {
+			return value.Weight(), branch, nil
+		}
+		return value.Weight(), &shortNode{key: key[:prefixLen], value: branch, dirty: true}, nil
+	case *hashNode:
+		rn, err := t.resolveHashNode(n)
+		if err != nil {
+			return 0, nil, err
+		}
+		return t.insert(rn, prefix, key, value)
+	case nil:
+		return value.Weight(), &shortNode{key: key, value: value, dirty: true}, nil
+	case *nilNode:
+		return value.Weight(), &shortNode{key: key, value: value, dirty: true}, nil
+	default:
+		return 0, nil, errors.New("unknown node type")
+	}
+}
+
+func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node, error) {
+	switch n := node.(type) {
+	case *shortNode:
+		prefixLen := commonPrefix(n.key, key)
+		if prefixLen < len(n.key) {
+			return 0, n, ErrNotFound
+		}
+		if prefixLen == len(key) {
+			//delete the node
+			t.tempDeleted = append(t.tempDeleted, n.Hash(), n.value.Hash())
+			return n.Weight(), nil, nil
+		}
+		//the key is longer than the short node key, call delete on the child
+		n.dirty = true
+		change, newNode, err := t.delete(n.value, append(prefix, key[:len(n.key)]...), key[len(n.key):])
+		if err != nil {
+			return 0, nil, err
+		}
+		switch child := newNode.(type) {
+		case *shortNode:
+			//merge the short node
+			newKey := make([]byte, len(n.key)+len(child.key))
+			copy(newKey, n.key)
+			copy(newKey[len(n.key):], child.key)
+			n.key = newKey
+			n.value = child.value
+			return change, n, nil
+		default:
+			n.value = newNode
+			return change, n, nil
+		}
+	case *routingNode:
+		change, newNode, err := t.delete(n.Children[key[0]], append(prefix, key[0]), key[1:])
+		if err != nil {
+			return 0, nil, err
+		}
+		n.dirty = true
+		n.Children[key[0]] = newNode
+		n.weight -= change
+		//if child is not nil, we can return the branching node as it has at least 2 children
+		if newNode != nil {
+			return change, n, nil
+		}
+		//Reduction:
+		// check if n has only one child, if so, merge it with the child
+		pos := -1
+		for i, child := range &n.Children {
+			if child != nil {
+				if pos == -1 {
+					pos = i
+				} else {
+					pos = -2
+					break
+				}
+			}
+		}
+		if pos >= 0 {
+			cnode, err := t.resolve(n.Children[pos])
+			if err != nil {
+				return 0, nil, err
+			}
+			// merge if the child is short node
+			if cnode, ok := cnode.(*shortNode); ok {
+				newKey := make([]byte, len(cnode.key)+1)
+				newKey[0] = byte(pos)
+				copy(newKey[1:], cnode.key)
+				t.tempDeleted = append(t.tempDeleted, n.Hash(), cnode.Hash())
+				newShortNode := &shortNode{
+					key:   newKey,
+					value: cnode.value,
+					dirty: true,
+				}
+				return change, newShortNode, nil
+			}
+		}
+		return change, n, nil
+	case *valueNode:
+		t.tempDeleted = append(t.tempDeleted, n.Hash())
+		return n.weight, nil, nil
+	case nil:
+		return 0, nil, ErrNotFound
+	case *nilNode:
+		return 0, nil, ErrNotFound
+	case *hashNode:
+		rn, err := t.resolveHashNode(n)
+		if err != nil {
+			return 0, nil, err
+		}
+		return t.delete(rn, prefix, key)
+	default:
+		return 0, nil, errors.New("unknown node type")
+	}
+}
+
+// Resolves the node by loading it from the database if it is a hash node, otherwise it returns the node
+func (t *WeightedMerkleTrie) resolve(node Node) (Node, error) {
+	if n, ok := node.(*hashNode); ok {
+		return t.resolveHashNode(n)
+	}
+	return node, nil
+}
+
+func (t *WeightedMerkleTrie) resolveHashNode(node *hashNode) (Node, error) {
+	data, err := t.db.Get(node.Hash())
+	if err != nil {
+		return nil, err
+	}
+	loadedNode, err := DeserializeNode(data)
+	return loadedNode, err
+}
+
 // Put puts a key-value pair into the trie
 func (t *WeightedMerkleTrie) Put(key, value []byte, weight uint64) error {
-	_, newNode, err := t.put(t.root, key, value, weight)
+	_, newNode, err := t.insert(t.root, nil, key, &valueNode{value: value, weight: weight, dirty: true})
 	if err != nil {
 		return err
 	}
@@ -50,12 +253,15 @@ func (t *WeightedMerkleTrie) SaveRoot() {
 
 // Rollback rolls back the trie to the previous root
 func (t *WeightedMerkleTrie) Rollback() {
-	t.root = &t.oldRoot
+	t.root = &hashNode{
+		hash:   t.oldRoot.hash,
+		weight: t.oldRoot.weight,
+	}
 	t.deleted = nil
 }
 
-// DeleteNodes deletes the nodes from the underlying storage and sets nextDelete to the next nodes to be deleted
-func (t *WeightedMerkleTrie) DeleteNodes(nextDelete [][]byte) error {
+// DeleteNodes deletes the nodes from the underlying storage and sets nextDelete to the tempDeleted nodes collected in previous mutations
+func (t *WeightedMerkleTrie) DeleteNodes() error {
 	batcher := t.db.NewBatch()
 	for _, key := range t.deleted {
 		err := batcher.Delete(key)
@@ -69,7 +275,8 @@ func (t *WeightedMerkleTrie) DeleteNodes(nextDelete [][]byte) error {
 			return err
 		}
 	}
-	t.deleted = nextDelete
+	t.deleted = t.tempDeleted
+	t.tempDeleted = nil
 	return nil
 }
 
@@ -85,95 +292,43 @@ func (t *WeightedMerkleTrie) Root() []byte {
 }
 
 // Commit collapses the trie to the specified level and returns the batcher and the deleted nodes, it is the caller's responsibility to commit the batch
-func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, [][]byte, error) {
+func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) {
 	batcher := t.db.NewBatch()
-	nextDelete := make([][]byte, 0, 10)
-	node, nextDelete, err := t.commit(t.root, batcher, collapseLevel, 0, nextDelete)
-	if err != nil {
-		return nil, nil, err
-	}
-	t.root = node
-	return batcher, nextDelete, nil
-}
-
-func (t *WeightedMerkleTrie) Delete(key []byte) (deletedKeys [][]byte, err error) {
-	if t.root == nil {
-		return nil, ErrNotFound
-	}
-
-	_, node, deletedKeys, err := t.delete(t.root, key, nil)
+	node, err := t.commit(t.root, batcher, collapseLevel, 0)
 	if err != nil {
 		return nil, err
+	}
+	t.root = node
+	return batcher, nil
+}
+
+func (t *WeightedMerkleTrie) Delete(key []byte) error {
+	if t.root == nil {
+		return ErrNotFound
+	}
+
+	_, node, err := t.delete(t.root, nil, key)
+	if err != nil {
+		return err
 	}
 	t.root = node
 	if t.root == nil {
 		t.root = emptyNode
 	}
-	return deletedKeys, nil
+	return nil
 }
 
-func (t *WeightedMerkleTrie) delete(node Node, key []byte, deletedKeys [][]byte) (uint64, Node, [][]byte, error) {
+func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapseLevel, level int) (Node, error) {
 	if node == nil {
-		return 0, nil, deletedKeys, ErrNotFound
-	}
-
-	prefix := commonPrefix(node.Key(), key)
-	postfix := key[len(prefix):]
-
-	var (
-		err         error
-		deletedNode Node
-		change      uint64
-	)
-	switch n := node.(type) {
-	case *routingNode:
-		if len(prefix) != len(n.key) {
-			return 0, nil, deletedKeys, ErrNotFound
-		}
-		n.dirty = true
-		change, deletedNode, deletedKeys, err = t.delete(n.Children[postfix[0]], postfix[1:], deletedKeys)
-		if err != nil {
-			return 0, nil, deletedKeys, err
-		}
-		n.Children[postfix[0]] = deletedNode
-		n.weight -= change
-		if n.weight == 0 {
-			deletedKeys = append(deletedKeys, n.Hash())
-			return change, nil, deletedKeys, nil
-		}
-		return change, n, deletedKeys, nil
-	case *valueNode:
-		if bytes.Equal(prefix, key) {
-			deletedKeys = append(deletedKeys, n.Hash())
-			return n.weight, nil, deletedKeys, nil
-		}
-		return 0, nil, deletedKeys, ErrNotFound
-	case *hashNode:
-		data, err := t.db.Get(n.Hash())
-		if err != nil {
-			return 0, nil, deletedKeys, err
-		}
-		loadedNode, err := DeserializeNode(data)
-		if err != nil {
-			return 0, nil, deletedKeys, err
-		}
-		return t.delete(loadedNode, key, deletedKeys)
-	}
-	return 0, nil, deletedKeys, ErrNotFound
-}
-
-func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapseLevel, level int, nextDelete [][]byte) (Node, [][]byte, error) {
-	if node == nil {
-		return nil, nextDelete, nil
+		return nil, nil
 	}
 
 	if !node.Dirty() {
-		return node, nextDelete, nil
+		return node, nil
 	}
-
-	delHash := make([]byte, 32)
-	copy(delHash, node.Hash())
-	nextDelete = append(nextDelete, delHash)
+	deleteHash := make([]byte, 32)
+	copy(deleteHash, node.Hash())
+	t.tempDeleted = append(t.tempDeleted, deleteHash)
 	var err error
 	switch n := node.(type) {
 	case *routingNode:
@@ -182,9 +337,9 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 				continue
 			}
 			var collapsedNode Node
-			collapsedNode, nextDelete, err = t.commit(n.Children[i], batcher, collapseLevel, level+1, nextDelete)
+			collapsedNode, err = t.commit(n.Children[i], batcher, collapseLevel, level+1)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			if collapsedNode != nil {
 				n.Children[i] = collapsedNode
@@ -192,118 +347,58 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 		}
 		err = n.Save(batcher)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if level == collapseLevel {
 			n.Children = [16]Node{}
 			return &hashNode{
 				hash:   n.Hash(),
 				weight: n.Weight(),
-			}, nextDelete, nil
+			}, nil
 		}
-		return n, nextDelete, nil
+		return n, nil
+	case *shortNode:
+		collapsedNode, err := t.commit(n.value, batcher, collapseLevel, level+1)
+		if err != nil {
+			return nil, err
+		}
+		if collapsedNode != nil {
+			n.value = collapsedNode
+		}
+		err = n.Save(batcher)
+		if err != nil {
+			return nil, err
+		}
+		if level == collapseLevel {
+			return &hashNode{
+				hash:   n.Hash(),
+				weight: n.Weight(),
+			}, nil
+		}
+		return n, nil
 	case *valueNode:
 		err = n.Save(batcher)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		return n, nextDelete, nil
+		return n, nil
 	}
 
-	return node, nextDelete, nil
+	return node, nil
 }
 
-func (t *WeightedMerkleTrie) put(node Node, key, value []byte, weight uint64) (uint64, Node, error) {
-	if node == nil {
-		vNode := &valueNode{key: key, weight: weight, value: value, dirty: true}
-		return weight, vNode, nil
-	}
-
-	prefix := commonPrefix(node.Key(), key)
-	postfix := key[len(prefix):]
-
-	switch n := node.(type) {
-	case *nilNode:
-		return weight, &valueNode{key: key, weight: weight, value: value, dirty: true}, nil
-	case *routingNode:
-		n.dirty = true
-		//split the routing node into two routing nodes
-		if len(prefix) != len(n.key) {
-			newNode := &routingNode{
-				key:    prefix,
-				weight: n.weight,
-				dirty:  true,
-			}
-			n.key = n.key[len(prefix):]
-			newNode.Children[n.key[0]] = n
-			c, newValueNode, err := t.put(newNode.Children[postfix[0]], postfix[1:], value, weight)
-			if err != nil {
-				return 0, nil, err
-			}
-			newNode.weight += c
-			newNode.Children[postfix[0]] = newValueNode
-			return weight, newNode, nil
-		} else {
-			c, newValueNode, err := t.put(n.Children[postfix[0]], postfix[1:], value, weight)
-			if err != nil {
-				return 0, nil, err
-			}
-			n.weight += c
-			n.Children[postfix[0]] = newValueNode
-			return weight, n, nil
-		}
-	case *valueNode:
-		n.dirty = true
-		if bytes.Equal(prefix, key) {
-			n.value = value
-			c := weight - n.weight
-			n.weight = weight
-			return c, n, nil
-		} else {
-			//split the value node
-			newRoutingNode := &routingNode{
-				key:    prefix,
-				dirty:  true,
-				weight: n.weight,
-			}
-			n.key = n.key[len(prefix):]
-			keyInd := n.key[0]
-			n.key = n.key[1:]
-			newRoutingNode.Children[keyInd] = n
-			c, newValueNode, err := t.put(newRoutingNode.Children[postfix[0]], postfix[1:], value, weight)
-			if err != nil {
-				return 0, nil, err
-			}
-			newRoutingNode.weight += c
-			newRoutingNode.Children[postfix[0]] = newValueNode
-			return weight, newRoutingNode, nil
-		}
-	case *hashNode:
-		data, err := t.db.Get(n.Hash())
-		if err != nil {
-			return 0, nil, err
-		}
-		loadedNode, err := DeserializeNode(data)
-		if err != nil {
-			return 0, nil, err
-		}
-		return t.put(loadedNode, key, value, weight)
-	}
-	return 0, nil, nil
-}
-
-func commonPrefix(a, b []byte) []byte {
+func commonPrefix(a, b []byte) int {
 	minLen := len(a)
 	if len(b) < minLen {
 		minLen = len(b)
 	}
 	if minLen == 0 {
-		return nil
+		return 0
 	}
 	for i := 0; i < minLen; i++ {
 		if a[i] != b[i] {
-			return a[:i]
+			return i
 		}
 	}
-	return a[:minLen]
+	return minLen
 }

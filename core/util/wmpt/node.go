@@ -10,7 +10,6 @@ import (
 )
 
 type Node interface {
-	Key() []byte
 	Hash() []byte
 	CalcHash() []byte
 	Copy() Node
@@ -22,7 +21,6 @@ type Node interface {
 
 type (
 	routingNode struct {
-		key       []byte
 		hash      []byte
 		Children  [16]Node
 		weight    uint64
@@ -30,11 +28,17 @@ type (
 		toCollect bool
 	}
 	valueNode struct {
-		key    []byte
 		hash   []byte
 		value  []byte
 		weight uint64
 		dirty  bool
+	}
+	shortNode struct {
+		key       []byte
+		hash      []byte
+		value     Node
+		dirty     bool
+		toCollect bool
 	}
 	nilNode  struct{}
 	hashNode struct {
@@ -58,24 +62,22 @@ func init() {
 
 const (
 	hashWithWeightLength = 40
+	branchNodeLength     = 16
 )
-
-func (r *routingNode) Key() []byte {
-	return r.key
-}
 
 func (r *routingNode) Hash() []byte {
 	return r.hash
 }
 
 func (r *routingNode) Copy() Node {
-	keyCopy := make([]byte, len(r.key))
-	copy(keyCopy, r.key)
-	cpy := &routingNode{hash: r.hash, weight: r.weight, key: keyCopy}
+	cpy := &routingNode{hash: r.hash, weight: r.weight}
 
 	for i, n := range r.Children {
 		if n != nil {
-			cpy.Children[i] = n.Copy()
+			cpy.Children[i] = &hashNode{
+				hash:   n.Hash(),
+				weight: n.Weight(),
+			}
 		}
 	}
 
@@ -93,7 +95,6 @@ func (r *routingNode) CalcHash() []byte {
 		}
 		m = append(m, child.CalcHash()...)
 	}
-	m = append(m, r.key...)
 	h := encryption.RawHash(m)
 	r.hash = h
 	return h
@@ -124,20 +125,19 @@ func (r *routingNode) Save(batcher storage.Batcher) error {
 
 func (r *routingNode) Serialize() ([]byte, error) {
 	persistBranchNode := PersistNodeBranch{}
-	persistBranchNode.Key = r.key
-	persistBranchNode.Weight = r.weight
 	r.toCollect = false
 	if r.dirty {
 		r.CalcHash()
-		persistBranchNode.Children = make([][]byte, 16)
-		for i, child := range r.Children {
-			if child != nil {
-				childBytes := child.Hash()
-				childBytes = binary.BigEndian.AppendUint64(childBytes, child.Weight())
-				persistBranchNode.Children[i] = childBytes
-			}
+	}
+	persistBranchNode.Children = make([][]byte, 16)
+	for i, child := range r.Children {
+		if child != nil {
+			childBytes := child.Hash()
+			childBytes = binary.BigEndian.AppendUint64(childBytes, child.Weight())
+			persistBranchNode.Children[i] = childBytes
 		}
 	}
+
 	persistBranchNode.Hash = r.hash
 
 	pNode := PersistNodeBase{
@@ -147,22 +147,15 @@ func (r *routingNode) Serialize() ([]byte, error) {
 	return cbor.Marshal(&pNode)
 }
 
-func (v *valueNode) Key() []byte {
-	return v.key
-}
-
 func (v *valueNode) Hash() []byte {
 	return v.hash
 }
 
 func (v *valueNode) Copy() Node {
-	keyCopy := make([]byte, len(v.key))
-	copy(keyCopy, v.key)
-
 	valueCopy := make([]byte, len(v.value))
 	copy(valueCopy, v.value)
 
-	return &valueNode{key: keyCopy, value: valueCopy, weight: v.weight, hash: v.hash}
+	return &valueNode{value: valueCopy, weight: v.weight, hash: v.hash}
 }
 
 func (v *valueNode) CalcHash() []byte {
@@ -207,17 +200,12 @@ func (v *valueNode) Serialize() ([]byte, error) {
 	pNode := PersistNodeBase{
 		Value: &PersistNodeValue{
 			Value:  v.value,
-			Key:    v.key,
 			Weight: v.weight,
 			Hash:   v.hash,
 		},
 	}
 
 	return cbor.Marshal(&pNode)
-}
-
-func (n *nilNode) Key() []byte {
-	return []byte("")
 }
 
 func (n *nilNode) Hash() []byte {
@@ -250,10 +238,6 @@ func (n *nilNode) Serialize() ([]byte, error) {
 
 func NewHashNode(hash []byte, weight uint64) Node {
 	return &hashNode{hash: hash, weight: weight}
-}
-
-func (h *hashNode) Key() []byte {
-	return []byte("")
 }
 
 func (h *hashNode) Hash() []byte {
@@ -291,6 +275,76 @@ func (h *hashNode) Serialize() ([]byte, error) {
 	return cbor.Marshal(&pNode)
 }
 
+func (s *shortNode) Hash() []byte {
+	return s.hash
+}
+
+func (s *shortNode) CalcHash() []byte {
+	if !s.dirty {
+		return s.hash
+	}
+	var m []byte
+	m = append(m, s.key...)
+	if s.value != nil {
+		m = append(m, s.value.Hash()...)
+	}
+	s.hash = encryption.RawHash(m)
+	s.dirty = false
+	return s.hash
+}
+
+func (s *shortNode) Weight() uint64 {
+	return s.value.Weight()
+}
+
+func (s *shortNode) ToCollect() bool {
+	return s.toCollect
+}
+
+func (s *shortNode) Dirty() bool {
+	return s.dirty
+}
+
+func (s *shortNode) Copy() Node {
+	keyCopy := make([]byte, len(s.key))
+	copy(keyCopy, s.key)
+
+	valueCopy := s.value.Copy()
+
+	return &shortNode{key: keyCopy, value: valueCopy, hash: s.hash}
+}
+
+func (s *shortNode) Serialize() ([]byte, error) {
+	if s.dirty {
+		s.CalcHash()
+	}
+	valueHashWithWeight := make([]byte, hashWithWeightLength)
+	copy(valueHashWithWeight, s.value.Hash())
+	binary.BigEndian.PutUint64(valueHashWithWeight[32:], s.value.Weight())
+
+	shortPersistNode := PersistNodeShort{
+		Key:   s.key,
+		Hash:  s.hash,
+		Value: valueHashWithWeight,
+	}
+	pNode := PersistNodeBase{
+		Short: &shortPersistNode,
+	}
+
+	return cbor.Marshal(&pNode)
+}
+
+func (s *shortNode) Save(batcher storage.Batcher) error {
+	if !s.dirty {
+		return nil
+	}
+	data, err := s.Serialize()
+	if err != nil {
+		return err
+	}
+	return batcher.Put(s.hash, data)
+}
+
 func DeserializeNode(data []byte) (Node, error) {
 	pNode := PersistNodeBase{}
 	err := cbor.Unmarshal(data, &pNode)
@@ -299,13 +353,12 @@ func DeserializeNode(data []byte) (Node, error) {
 	}
 	if pNode.Branch != nil {
 		branchNode := routingNode{}
-		branchNode.key = pNode.Branch.Key
-		branchNode.weight = pNode.Branch.Weight
 		branchNode.hash = pNode.Branch.Hash
 		for i, child := range pNode.Branch.Children {
 			if len(child) == hashWithWeightLength {
 				childHash := child[:32]
 				childWeight := binary.BigEndian.Uint64(child[32:])
+				branchNode.weight += childWeight
 				branchNode.Children[i] = &hashNode{hash: childHash, weight: childWeight}
 			}
 		}
@@ -313,7 +366,6 @@ func DeserializeNode(data []byte) (Node, error) {
 	}
 	if pNode.Value != nil {
 		valueNode := valueNode{}
-		valueNode.key = pNode.Value.Key
 		valueNode.value = pNode.Value.Value
 		valueNode.weight = pNode.Value.Weight
 		valueNode.hash = pNode.Value.Hash
@@ -328,5 +380,20 @@ func DeserializeNode(data []byte) (Node, error) {
 		hashNode.weight = pNode.HashNode.Weight
 		return &hashNode, nil
 	}
+	if pNode.Short != nil {
+		shortNode := shortNode{}
+		shortNode.key = pNode.Short.Key
+		if len(pNode.Short.Value) != hashWithWeightLength {
+			return nil, errors.New("invalid hash with weight")
+		}
+		shortNode.hash = pNode.Short.Hash
+		hashNode := hashNode{
+			hash:   pNode.Short.Value[:32],
+			weight: binary.BigEndian.Uint64(pNode.Short.Value[32:]),
+		}
+		shortNode.value = &hashNode
+		return &shortNode, nil
+	}
+
 	return nil, errors.New("invalid node")
 }
