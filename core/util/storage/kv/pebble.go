@@ -1,8 +1,9 @@
-package storage
+package kv
 
 import (
 	"runtime"
 
+	"github.com/0chain/common/core/util/storage"
 	"github.com/cockroachdb/pebble"
 )
 
@@ -49,7 +50,7 @@ type batch struct {
 	b *pebble.Batch
 }
 
-func (p *PebbleAdapter) NewBatch() Batcher {
+func (p *PebbleAdapter) NewBatch() storage.Batcher {
 	b := p.db.NewBatch()
 	return &batch{b: b}
 }

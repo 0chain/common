@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/0chain/common/core/util/storage"
+	"github.com/0chain/common/core/util/storage/kv"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -108,7 +108,7 @@ func TestTrieCommit(t *testing.T) {
 	pebDir := filepath.Join(wd, "pebble_storage")
 	assert.NoError(t, os.RemoveAll(pebDir))
 	assert.NoError(t, os.MkdirAll(pebDir, 0777))
-	db, err := storage.NewPebbleAdapter(pebDir)
+	db, err := kv.NewPebbleAdapter(pebDir)
 	if err != nil {
 		t.Fatal(err)
 	}
