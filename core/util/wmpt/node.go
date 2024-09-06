@@ -74,10 +74,7 @@ func (r *routingNode) Copy() Node {
 
 	for i, n := range r.Children {
 		if n != nil {
-			cpy.Children[i] = &hashNode{
-				hash:   n.Hash(),
-				weight: n.Weight(),
-			}
+			cpy.Children[i] = n.Copy()
 		}
 	}
 
