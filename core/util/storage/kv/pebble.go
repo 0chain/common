@@ -11,10 +11,12 @@ type PebbleAdapter struct {
 	db *pebble.DB
 }
 
-func NewPebbleAdapter(path string) (*PebbleAdapter, error) {
-	opts := &pebble.Options{
-		Cache:                    pebble.NewCache(1024 * 1024 * 1024),
-		MaxConcurrentCompactions: func() int { return runtime.GOMAXPROCS(0) },
+func NewPebbleAdapter(path string, opts *pebble.Options) (*PebbleAdapter, error) {
+	if opts == nil {
+		opts = &pebble.Options{
+			Cache:                    pebble.NewCache(1024 * 1024 * 1024),
+			MaxConcurrentCompactions: func() int { return runtime.GOMAXPROCS(0) },
+		}
 	}
 	db, err := pebble.Open(path, opts)
 	if err != nil {

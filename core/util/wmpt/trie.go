@@ -2,6 +2,7 @@ package wmpt
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/util/storage"
@@ -25,6 +26,7 @@ type WeightedMerkleTrie struct {
 	oldRoot     hashNode
 	deleted     [][]byte
 	tempDeleted [][]byte
+	sync.Mutex
 }
 
 // New creates a new weighted merkle trie
@@ -36,10 +38,22 @@ func New(root Node, db storage.StorageAdapter) *WeightedMerkleTrie {
 }
 
 func (t *WeightedMerkleTrie) CopyRoot() Node {
+	t.Lock()
+	defer t.Unlock()
 	if t.root == nil {
 		return emptyNode
 	}
 	return t.root.Copy()
+}
+
+func (t *WeightedMerkleTrie) SetRoot(root Node) {
+	t.Lock()
+	defer t.Unlock()
+	t.root = root
+}
+
+func (t *WeightedMerkleTrie) GetRoot() Node {
+	return t.root
 }
 
 func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
@@ -47,6 +61,8 @@ func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
 		return ErrInvalidKey
 	}
 	k := keybytesToHex(key)
+	t.Lock()
+	defer t.Unlock()
 	if t.root == nil {
 		t.root = emptyNode
 	}
@@ -233,6 +249,9 @@ func (t *WeightedMerkleTrie) resolve(node Node) (Node, error) {
 }
 
 func (t *WeightedMerkleTrie) resolveHashNode(node *hashNode) (Node, error) {
+	if t.db == nil {
+		return nil, errors.New("database is not set")
+	}
 	data, err := t.db.Get(node.Hash())
 	if err != nil {
 		return nil, err
@@ -262,23 +281,27 @@ func (t *WeightedMerkleTrie) SaveRoot() {
 
 // Rollback rolls back the trie to the previous root
 func (t *WeightedMerkleTrie) Rollback() {
-	t.root = &hashNode{
-		hash:   t.oldRoot.hash,
-		weight: t.oldRoot.weight,
+	if len(t.oldRoot.hash) > 0 {
+		t.root = &hashNode{
+			hash:   t.oldRoot.hash,
+			weight: t.oldRoot.weight,
+		}
+	} else {
+		t.root = emptyNode
 	}
-	t.deleted = nil
+	t.tempDeleted = nil
 }
 
 // DeleteNodes deletes the nodes from the underlying storage and sets nextDelete to the tempDeleted nodes collected in previous mutations
 func (t *WeightedMerkleTrie) DeleteNodes() error {
 	batcher := t.db.NewBatch()
-	for _, key := range t.deleted {
-		err := batcher.Delete(key)
-		if err != nil {
-			return err
-		}
-	}
 	if len(t.deleted) > 0 {
+		for _, key := range t.deleted {
+			err := batcher.Delete(key)
+			if err != nil {
+				return err
+			}
+		}
 		err := batcher.Commit(false)
 		if err != nil {
 			return err

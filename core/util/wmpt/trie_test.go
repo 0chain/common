@@ -108,7 +108,7 @@ func TestTrieCommit(t *testing.T) {
 	pebDir := filepath.Join(wd, "pebble_storage")
 	assert.NoError(t, os.RemoveAll(pebDir))
 	assert.NoError(t, os.MkdirAll(pebDir, 0777))
-	db, err := kv.NewPebbleAdapter(pebDir)
+	db, err := kv.NewPebbleAdapter(pebDir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
