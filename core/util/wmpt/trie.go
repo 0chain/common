@@ -341,20 +341,20 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 	return batcher, nil
 }
 
-func (t *WeightedMerkleTrie) Delete(key []byte) error {
+func (t *WeightedMerkleTrie) Delete(key []byte) (uint64, error) {
 	if t.root == nil {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	k := keybytesToHex(key)
-	_, node, err := t.delete(t.root, nil, k)
+	change, node, err := t.delete(t.root, nil, k)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	t.root = node
 	if t.root == nil {
 		t.root = emptyNode
 	}
-	return nil
+	return change, nil
 }
 
 func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapseLevel, level int) (Node, error) {
