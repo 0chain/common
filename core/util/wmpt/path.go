@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cockroachdb/pebble"
 	"github.com/fxamacker/cbor/v2"
 )
+
+var ErrKVNotFound = errors.New("pebble: not found")
 
 func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 	persistTrie := &PersistTrie{}
@@ -55,7 +56,7 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 		k := keybytesToHex(key)
 		_, err := t.markToCollect(t.root, k, 0)
 		if err != nil {
-			if errors.Is(err, pebble.ErrNotFound) {
+			if errors.Is(err, ErrKVNotFound) {
 				err = ErrNotFound
 			}
 			return nil, err

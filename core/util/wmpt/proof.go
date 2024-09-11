@@ -3,7 +3,6 @@ package wmpt
 import (
 	"errors"
 
-	"github.com/cockroachdb/pebble"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -17,7 +16,7 @@ func (t *WeightedMerkleTrie) GetBlockProof(block uint64) (key, proof []byte, err
 	persistTrie := &PersistTrie{}
 	key, err = t.getBlockProof(t.root, block, nil, persistTrie)
 	if err != nil {
-		if errors.Is(err, pebble.ErrNotFound) {
+		if errors.Is(err, ErrKVNotFound) {
 			return nil, nil, ErrNotFound
 		}
 		return nil, nil, err
