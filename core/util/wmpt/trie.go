@@ -37,13 +37,13 @@ func New(root Node, db storage.StorageAdapter) *WeightedMerkleTrie {
 	return &WeightedMerkleTrie{db: db, root: root}
 }
 
-func (t *WeightedMerkleTrie) CopyRoot() Node {
+func (t *WeightedMerkleTrie) CopyRoot(collapseLevel int) Node {
 	t.Lock()
 	defer t.Unlock()
 	if t.root == nil {
 		return emptyNode
 	}
-	return t.root.Copy()
+	return t.root.CopyRoot(0, collapseLevel)
 }
 
 func (t *WeightedMerkleTrie) SetRoot(root Node) {

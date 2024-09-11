@@ -13,6 +13,7 @@ type Node interface {
 	Hash() []byte
 	CalcHash() []byte
 	Copy() Node
+	CopyRoot(currLevel, collapseLevel int) Node
 	Weight() uint64
 	Serialize() ([]byte, error)
 	ToCollect() bool
@@ -74,10 +75,30 @@ func (r *routingNode) Copy() Node {
 
 	for i, n := range r.Children {
 		if n != nil {
-			cpy.Children[i] = n.Copy()
+			cpy.Children[i] = &hashNode{
+				hash:   n.Hash(),
+				weight: n.Weight(),
+			}
 		}
 	}
 
+	return cpy
+}
+
+func (r *routingNode) CopyRoot(currLevel, collapseLevel int) Node {
+	if currLevel == collapseLevel {
+		return &hashNode{
+			hash:   r.hash,
+			weight: r.weight,
+		}
+	}
+	cpy := &routingNode{hash: r.hash, weight: r.weight}
+
+	for i, n := range r.Children {
+		if n != nil {
+			cpy.Children[i] = n.CopyRoot(currLevel+1, collapseLevel)
+		}
+	}
 	return cpy
 }
 
@@ -155,6 +176,10 @@ func (v *valueNode) Copy() Node {
 	return &valueNode{value: valueCopy, weight: v.weight, hash: v.hash}
 }
 
+func (v *valueNode) CopyRoot(currLevel, collapseLevel int) Node {
+	return v.Copy()
+}
+
 func (v *valueNode) CalcHash() []byte {
 	if !v.dirty {
 		return v.hash
@@ -213,6 +238,10 @@ func (n *nilNode) Copy() Node {
 	return n
 }
 
+func (n *nilNode) CopyRoot(currLevel, collapseLevel int) Node {
+	return n
+}
+
 func (n *nilNode) CalcHash() []byte {
 	return emptyState
 }
@@ -243,6 +272,10 @@ func (h *hashNode) Hash() []byte {
 
 func (h *hashNode) Copy() Node {
 	return &hashNode{hash: h.hash, weight: h.weight}
+}
+
+func (h *hashNode) CopyRoot(currLevel, collapseLevel int) Node {
+	return h.Copy()
 }
 
 func (h *hashNode) CalcHash() []byte {
@@ -306,8 +339,24 @@ func (s *shortNode) Copy() Node {
 	keyCopy := make([]byte, len(s.key))
 	copy(keyCopy, s.key)
 
-	valueCopy := s.value.Copy()
+	valueCopy := &hashNode{
+		hash:   s.value.Hash(),
+		weight: s.value.Weight(),
+	}
 
+	return &shortNode{key: keyCopy, value: valueCopy, hash: s.hash}
+}
+
+func (s *shortNode) CopyRoot(currLevel, collapseLevel int) Node {
+	if currLevel == collapseLevel {
+		return &hashNode{
+			hash:   s.hash,
+			weight: s.Weight(),
+		}
+	}
+	keyCopy := make([]byte, len(s.key))
+	copy(keyCopy, s.key)
+	valueCopy := s.value.CopyRoot(currLevel+1, collapseLevel)
 	return &shortNode{key: keyCopy, value: valueCopy, hash: s.hash}
 }
 
