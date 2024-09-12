@@ -62,8 +62,9 @@ func init() {
 }
 
 const (
-	hashWithWeightLength = 40
-	branchNodeLength     = 16
+	hashWithWeightLength     = 40
+	branchNodeLength         = 16
+	branchNodeHashDataLength = 16*32 + 8 //16 children + 8 bytes for weight
 )
 
 func (r *routingNode) Hash() []byte {
@@ -106,7 +107,8 @@ func (r *routingNode) CalcHash() []byte {
 	if !r.dirty {
 		return r.hash
 	}
-	m := binary.BigEndian.AppendUint64(nil, r.weight)
+	m := make([]byte, 0, branchNodeHashDataLength)
+	m = binary.BigEndian.AppendUint64(m, r.weight)
 	for _, child := range r.Children {
 		if child == nil {
 			child = emptyNode
@@ -150,7 +152,8 @@ func (r *routingNode) Serialize() ([]byte, error) {
 	persistBranchNode.Children = make([][]byte, 16)
 	for i, child := range r.Children {
 		if child != nil {
-			childBytes := child.Hash()
+			childBytes := make([]byte, 0, hashWithWeightLength)
+			childBytes = append(childBytes, child.Hash()...)
 			childBytes = binary.BigEndian.AppendUint64(childBytes, child.Weight())
 			persistBranchNode.Children[i] = childBytes
 		}
@@ -184,7 +187,8 @@ func (v *valueNode) CalcHash() []byte {
 	if !v.dirty {
 		return v.hash
 	}
-	m := binary.BigEndian.AppendUint64(nil, v.weight)
+	m := make([]byte, 0, hashWithWeightLength)
+	m = binary.BigEndian.AppendUint64(m, v.weight)
 	m = append(m, v.value...)
 	h := encryption.RawHash(m)
 	v.hash = h
@@ -313,7 +317,7 @@ func (s *shortNode) CalcHash() []byte {
 	if !s.dirty {
 		return s.hash
 	}
-	var m []byte
+	m := make([]byte, 0, len(s.key)+32)
 	m = append(m, s.key...)
 	if s.value != nil {
 		m = append(m, s.value.CalcHash()...)
