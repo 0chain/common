@@ -1,11 +1,13 @@
 package wmpt
 
 import (
+	"context"
 	"errors"
 	"sync"
 
 	"github.com/0chain/common/core/encryption"
 	"github.com/0chain/common/core/util/storage"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -333,6 +335,37 @@ func (t *WeightedMerkleTrie) Weight() uint64 {
 // Commit collapses the trie to the specified level and returns the batcher and the deleted nodes, it is the caller's responsibility to commit the batch
 func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) {
 	batcher := t.db.NewBatch()
+	root, ok := t.root.(*routingNode)
+	if ok {
+		eg, _ := errgroup.WithContext(context.Background())
+		for i := 0; i < len(&root.Children); i++ {
+			if root.Children[i] == nil || !root.Children[i].Dirty() {
+				continue
+			}
+			ind := i
+			eg.Go(func() error {
+				var collapsedNode Node
+				collapsedNode, err := t.commit(root.Children[ind], batcher, collapseLevel, 1)
+				if err != nil {
+					return err
+				}
+				if collapsedNode != nil {
+					root.Children[ind] = collapsedNode
+				}
+				return nil
+			})
+		}
+		err := eg.Wait()
+		if err != nil {
+			return nil, err
+		}
+		err = root.Save(batcher)
+		if err != nil {
+			return nil, err
+		}
+		t.root = root
+		return batcher, nil
+	}
 	node, err := t.commit(t.root, batcher, collapseLevel, 0)
 	if err != nil {
 		return nil, err
@@ -367,7 +400,9 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 	}
 	deleteHash := make([]byte, 32)
 	copy(deleteHash, node.Hash())
+	t.Lock()
 	t.tempDeleted = append(t.tempDeleted, deleteHash)
+	t.Unlock()
 	var err error
 	switch n := node.(type) {
 	case *routingNode:

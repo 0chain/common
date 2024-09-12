@@ -4,6 +4,7 @@ package kv
 
 import (
 	"runtime"
+	"sync"
 
 	"github.com/0chain/common/core/util/storage"
 	"github.com/cockroachdb/pebble"
@@ -52,6 +53,7 @@ func (p *PebbleAdapter) Delete(key []byte) error {
 
 type batch struct {
 	b *pebble.Batch
+	sync.Mutex
 }
 
 func (p *PebbleAdapter) NewBatch() storage.Batcher {
@@ -60,6 +62,8 @@ func (p *PebbleAdapter) NewBatch() storage.Batcher {
 }
 
 func (b *batch) Put(key []byte, value []byte) error {
+	b.Lock()
+	defer b.Unlock()
 	return b.b.Set(key, value, pebble.NoSync)
 }
 
@@ -71,5 +75,7 @@ func (b *batch) Commit(sync bool) error {
 }
 
 func (b *batch) Delete(key []byte) error {
+	b.Lock()
+	defer b.Unlock()
 	return b.b.Delete(key, pebble.NoSync)
 }
