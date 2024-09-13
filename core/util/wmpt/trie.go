@@ -28,6 +28,7 @@ type WeightedMerkleTrie struct {
 	oldRoot     hashNode
 	deleted     [][]byte
 	tempDeleted [][]byte
+	created     [][]byte
 	sync.Mutex
 }
 
@@ -292,12 +293,13 @@ func (t *WeightedMerkleTrie) Rollback() {
 		t.root = emptyNode
 	}
 	t.tempDeleted = nil
+	t.DeleteNodes() //nolint:errcheck
 }
 
 // DeleteNodes deletes the nodes from the underlying storage and sets nextDelete to the tempDeleted nodes collected in previous mutations
 func (t *WeightedMerkleTrie) DeleteNodes() error {
-	batcher := t.db.NewBatch()
 	if len(t.deleted) > 0 {
+		batcher := t.db.NewBatch()
 		for _, key := range t.deleted {
 			err := batcher.Delete(key)
 			if err != nil {
@@ -337,15 +339,14 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 	batcher := t.db.NewBatch()
 	root, ok := t.root.(*routingNode)
 	deleteChan := make(chan []byte, 10)
+	createdChan := make(chan []byte, 10)
 	defer close(deleteChan)
-	go func() {
-		for hash := range deleteChan {
-			t.tempDeleted = append(t.tempDeleted, hash)
-		}
-	}()
+	defer close(createdChan)
+	t.collectDeleteAndCreated(deleteChan, createdChan)
 	if ok {
 		eg, _ := errgroup.WithContext(context.Background())
 		eg.SetLimit(5)
+		deleteChan <- root.Hash()
 		for i := 0; i < len(&root.Children); i++ {
 			if root.Children[i] == nil || !root.Children[i].Dirty() {
 				continue
@@ -353,7 +354,7 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 			ind := i
 			eg.Go(func() error {
 				var collapsedNode Node
-				collapsedNode, err := t.commit(root.Children[ind], batcher, collapseLevel, 1, deleteChan)
+				collapsedNode, err := t.commit(root.Children[ind], batcher, collapseLevel, 1, deleteChan, createdChan)
 				if err != nil {
 					return err
 				}
@@ -371,15 +372,32 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 		if err != nil {
 			return nil, err
 		}
+		createdChan <- root.Hash()
 		t.root = root
 		return batcher, nil
 	}
-	node, err := t.commit(t.root, batcher, collapseLevel, 0, deleteChan)
+	node, err := t.commit(t.root, batcher, collapseLevel, 0, deleteChan, createdChan)
 	if err != nil {
 		return nil, err
 	}
 	t.root = node
 	return batcher, nil
+}
+
+func (t *WeightedMerkleTrie) RollbackTrie(node Node) {
+	if node == nil {
+		node = emptyNode
+	}
+	t.root = node
+	if len(t.created) > 0 {
+		batcher := t.db.NewBatch()
+		for _, hash := range t.created {
+			_ = batcher.Delete(hash)
+		}
+		batcher.Commit(false) //nolint:errcheck
+	}
+	t.created = nil
+	t.deleted = nil
 }
 
 func (t *WeightedMerkleTrie) Delete(key []byte) (uint64, error) {
@@ -398,7 +416,7 @@ func (t *WeightedMerkleTrie) Delete(key []byte) (uint64, error) {
 	return change, nil
 }
 
-func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapseLevel, level int, deleteChan chan []byte) (Node, error) {
+func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapseLevel, level int, deleteChan, createdChan chan []byte) (Node, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -406,9 +424,7 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 	if !node.Dirty() {
 		return node, nil
 	}
-	deleteHash := make([]byte, 32)
-	copy(deleteHash, node.Hash())
-	deleteChan <- deleteHash
+	deleteChan <- node.Hash()
 	var err error
 	switch n := node.(type) {
 	case *routingNode:
@@ -417,7 +433,7 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 				continue
 			}
 			var collapsedNode Node
-			collapsedNode, err = t.commit(n.Children[i], batcher, collapseLevel, level+1, deleteChan)
+			collapsedNode, err = t.commit(n.Children[i], batcher, collapseLevel, level+1, deleteChan, createdChan)
 			if err != nil {
 				return nil, err
 			}
@@ -436,9 +452,10 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 				weight: n.Weight(),
 			}, nil
 		}
+		createdChan <- n.Hash()
 		return n, nil
 	case *shortNode:
-		collapsedNode, err := t.commit(n.value, batcher, collapseLevel, level+1, deleteChan)
+		collapsedNode, err := t.commit(n.value, batcher, collapseLevel, level+1, deleteChan, createdChan)
 		if err != nil {
 			return nil, err
 		}
@@ -455,12 +472,14 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 				weight: n.Weight(),
 			}, nil
 		}
+		createdChan <- n.Hash()
 		return n, nil
 	case *valueNode:
 		err = n.Save(batcher)
 		if err != nil {
 			return nil, err
 		}
+		createdChan <- n.Hash()
 		return n, nil
 	}
 
@@ -478,4 +497,21 @@ func commonPrefix(a, b []byte) int {
 		}
 	}
 	return i
+}
+
+func (t *WeightedMerkleTrie) collectDeleteAndCreated(deleteChan, createdChan chan []byte) {
+	t.tempDeleted = nil
+	t.created = nil
+	go func() {
+		for hash := range deleteChan {
+			if len(hash) > 0 {
+				t.tempDeleted = append(t.tempDeleted, hash)
+			}
+		}
+	}()
+	go func() {
+		for hash := range createdChan {
+			t.created = append(t.created, hash)
+		}
+	}()
 }

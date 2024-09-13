@@ -155,7 +155,22 @@ func (t *WeightedMerkleTrie) Deserialize(data []byte) error {
 	}
 	ind := 0
 	t.root, err = t.deserializeTrie(persistTrie.Pairs, &ind)
-	return err
+	if err != nil {
+		return err
+	}
+	hash := t.root.Hash()
+	switch n := t.root.(type) {
+	case *routingNode:
+		n.dirty = true
+		n.CalcHash()
+	case *shortNode:
+		n.dirty = true
+		n.CalcHash()
+	}
+	if !bytes.Equal(hash, t.root.Hash()) {
+		return errors.New("root hash mismatch")
+	}
+	return nil
 }
 
 func (t *WeightedMerkleTrie) deserializeTrie(pairs []*PersistTriePair, ind *int) (Node, error) {
