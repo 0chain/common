@@ -44,3 +44,22 @@ func TestGetPath(t *testing.T) {
 	assert.Equal(t, newTrie.root.Weight(), trie.root.Weight())
 	assert.Equal(t, newTrie.root.CalcHash(), trie.root.CalcHash())
 }
+
+func TestPathAndDelete(t *testing.T) {
+	trie := New(nil, nil)
+	keys := make([][]byte, 0, 100)
+	for i := 0; i < 100; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+		trie.Update(hash[:], []byte{byte(i)}, uint64(i))
+	}
+	trie.root.CalcHash()
+	path, err := trie.GetPath([][]byte{keys[50]})
+	assert.NoError(t, err)
+	newTrie := New(nil, nil)
+	err = newTrie.Deserialize(path)
+	assert.NoError(t, err)
+	assert.Equal(t, newTrie.root.Weight(), trie.root.Weight())
+	err = newTrie.Update(keys[50], nil, 0)
+	assert.NoError(t, err)
+}

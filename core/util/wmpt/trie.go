@@ -1,6 +1,7 @@
 package wmpt
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -246,6 +247,9 @@ func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node
 // Resolves the node by loading it from the database if it is a hash node, otherwise it returns the node
 func (t *WeightedMerkleTrie) resolve(node Node) (Node, error) {
 	if n, ok := node.(*hashNode); ok {
+		if t.db == nil {
+			return node, nil
+		}
 		return t.resolveHashNode(n)
 	}
 	return node, nil
@@ -387,6 +391,8 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 func (t *WeightedMerkleTrie) RollbackTrie(node Node) {
 	if node == nil {
 		node = emptyNode
+	} else if bytes.Equal(node.Hash(), t.root.Hash()) {
+		return
 	}
 	t.root = node
 	if len(t.created) > 0 {
