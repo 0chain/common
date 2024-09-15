@@ -3,7 +3,9 @@ package wmpt
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/0chain/common/core/encryption"
@@ -207,23 +209,30 @@ func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node
 			}
 		}
 		if pos >= 0 {
+			t.tempDeleted = append(t.tempDeleted, n.Hash())
+			fmt.Println("resolveNode: ", hex.EncodeToString(prefix), hex.EncodeToString(key))
 			cnode, err := t.resolve(n.Children[pos])
 			if err != nil {
 				return 0, nil, err
 			}
 			// merge if the child is short node
 			if cnode, ok := cnode.(*shortNode); ok {
+				fmt.Println("mergingShortNode: ", hex.EncodeToString(prefix), hex.EncodeToString(key))
 				newKey := make([]byte, len(cnode.key)+1)
 				newKey[0] = byte(pos)
 				copy(newKey[1:], cnode.key)
-				t.tempDeleted = append(t.tempDeleted, n.Hash(), cnode.Hash())
+				t.tempDeleted = append(t.tempDeleted, cnode.Hash())
 				newShortNode := &shortNode{
 					key:   newKey,
 					value: cnode.value,
 					dirty: true,
 				}
 				return change, newShortNode, nil
+			} else {
+				fmt.Println("notMerged: ", hex.EncodeToString(prefix), hex.EncodeToString(key))
 			}
+
+			return change, &shortNode{key: []byte{byte(pos)}, value: n.Children[pos], dirty: true}, nil
 		}
 		return change, n, nil
 	case *valueNode:
@@ -246,10 +255,10 @@ func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node
 
 // Resolves the node by loading it from the database if it is a hash node, otherwise it returns the node
 func (t *WeightedMerkleTrie) resolve(node Node) (Node, error) {
+	if t.db == nil {
+		return node, nil
+	}
 	if n, ok := node.(*hashNode); ok {
-		if t.db == nil {
-			return node, nil
-		}
 		return t.resolveHashNode(n)
 	}
 	return node, nil
