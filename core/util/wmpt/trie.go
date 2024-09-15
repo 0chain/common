@@ -482,10 +482,11 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 			return nil, err
 		}
 		if level == collapseLevel {
-			return &hashNode{
-				hash:   n.Hash(),
+			hn := &hashNode{
+				hash:   n.value.Hash(),
 				weight: n.Weight(),
-			}, nil
+			}
+			n.value = hn
 		}
 		createdChan <- n.Hash()
 		return n, nil

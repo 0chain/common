@@ -361,6 +361,9 @@ func (s *shortNode) Copy() Node {
 }
 
 func (s *shortNode) CopyRoot(currLevel, collapseLevel int) Node {
+	if currLevel == collapseLevel {
+		return s.Copy()
+	}
 	keyCopy := make([]byte, len(s.key))
 	copy(keyCopy, s.key)
 	valueCopy := s.value.CopyRoot(currLevel+1, collapseLevel)
