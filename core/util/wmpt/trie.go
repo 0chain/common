@@ -3,9 +3,7 @@ package wmpt
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/0chain/common/core/encryption"
@@ -210,14 +208,12 @@ func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node
 		}
 		if pos >= 0 {
 			t.tempDeleted = append(t.tempDeleted, n.Hash())
-			fmt.Println("resolveNode: ", hex.EncodeToString(prefix), hex.EncodeToString(key))
 			cnode, err := t.resolve(n.Children[pos])
 			if err != nil {
 				return 0, nil, err
 			}
 			// merge if the child is short node
 			if cnode, ok := cnode.(*shortNode); ok {
-				fmt.Println("mergingShortNode: ", hex.EncodeToString(prefix), hex.EncodeToString(key))
 				newKey := make([]byte, len(cnode.key)+1)
 				newKey[0] = byte(pos)
 				copy(newKey[1:], cnode.key)
@@ -228,8 +224,6 @@ func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node
 					dirty: true,
 				}
 				return change, newShortNode, nil
-			} else {
-				fmt.Println("notMerged: ", hex.EncodeToString(prefix), hex.EncodeToString(key))
 			}
 
 			return change, &shortNode{key: []byte{byte(pos)}, value: n.Children[pos], dirty: true}, nil
