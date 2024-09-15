@@ -152,9 +152,18 @@ func (r *routingNode) Serialize() ([]byte, error) {
 	persistBranchNode.Children = make([][]byte, 16)
 	for i, child := range r.Children {
 		if child != nil {
-			childBytes := make([]byte, 0, hashWithWeightLength)
-			childBytes = append(childBytes, child.Hash()...)
-			childBytes = binary.BigEndian.AppendUint64(childBytes, child.Weight())
+			var childBytes []byte
+			if c, ok := child.(*shortNode); ok {
+				childBytes = make([]byte, 0, hashWithWeightLength+32+len(c.key))
+				childBytes = append(childBytes, child.Hash()...)
+				childBytes = binary.BigEndian.AppendUint64(childBytes, child.Weight())
+				childBytes = append(childBytes, c.value.Hash()...)
+				childBytes = append(childBytes, c.key...)
+			} else {
+				childBytes = make([]byte, 0, hashWithWeightLength)
+				childBytes = append(childBytes, child.Hash()...)
+				childBytes = binary.BigEndian.AppendUint64(childBytes, child.Weight())
+			}
 			persistBranchNode.Children[i] = childBytes
 		}
 	}
@@ -352,12 +361,6 @@ func (s *shortNode) Copy() Node {
 }
 
 func (s *shortNode) CopyRoot(currLevel, collapseLevel int) Node {
-	if currLevel == collapseLevel {
-		return &hashNode{
-			hash:   s.hash,
-			weight: s.Weight(),
-		}
-	}
 	keyCopy := make([]byte, len(s.key))
 	copy(keyCopy, s.key)
 	valueCopy := s.value.CopyRoot(currLevel+1, collapseLevel)
@@ -365,6 +368,7 @@ func (s *shortNode) CopyRoot(currLevel, collapseLevel int) Node {
 }
 
 func (s *shortNode) Serialize() ([]byte, error) {
+	s.toCollect = false
 	if s.dirty {
 		s.CalcHash()
 	}
@@ -405,11 +409,22 @@ func DeserializeNode(data []byte) (Node, error) {
 		branchNode := routingNode{}
 		branchNode.hash = pNode.Branch.Hash
 		for i, child := range pNode.Branch.Children {
-			if len(child) == hashWithWeightLength {
+			if len(child) >= hashWithWeightLength {
 				childHash := child[:32]
 				childWeight := binary.BigEndian.Uint64(child[32:])
 				branchNode.weight += childWeight
-				branchNode.Children[i] = &hashNode{hash: childHash, weight: childWeight}
+				childNodeValue := &hashNode{hash: childHash, weight: childWeight}
+				if len(child) == hashWithWeightLength {
+					branchNode.Children[i] = childNodeValue
+				} else {
+					childNodeValue.hash = child[hashWithWeightLength : hashWithWeightLength+32]
+					childKey := child[hashWithWeightLength+32:]
+					branchNode.Children[i] = &shortNode{
+						key:   childKey,
+						hash:  childHash,
+						value: childNodeValue,
+					}
+				}
 			}
 		}
 		return &branchNode, nil

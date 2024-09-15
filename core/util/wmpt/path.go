@@ -2,9 +2,7 @@ package wmpt
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
 )
@@ -77,8 +75,8 @@ func (t *WeightedMerkleTrie) collectNodes(node Node, persistTrie *PersistTrie) e
 	if !node.ToCollect() {
 		if r, ok := node.(*routingNode); ok {
 			node = &hashNode{
-				hash:   r.Hash(),
-				weight: r.Weight(),
+				hash:   r.hash,
+				weight: r.weight,
 			}
 		}
 	}
@@ -207,7 +205,6 @@ func (t *WeightedMerkleTrie) deserializeTrie(pairs []*PersistTriePair, ind *int)
 			return nil, err
 		}
 		if !bytes.Equal(n.value.Hash(), child.Hash()) {
-			fmt.Println(hex.EncodeToString(n.value.Hash()), hex.EncodeToString(child.Hash()), hex.EncodeToString(n.key))
 			return nil, errors.New("child hash mismatch")
 		}
 		n.value = child
