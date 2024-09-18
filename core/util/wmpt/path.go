@@ -2,9 +2,12 @@ package wmpt
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"sync"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/sync/errgroup"
 )
 
 var ErrKVNotFound = errors.New("pebble: not found")
@@ -26,38 +29,45 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 		}
 	}
 
-	// eg, cancel := errgroup.WithContext()
+	if len(keys) > 1 {
+		eg, _ := errgroup.WithContext(context.TODO())
+		eg.SetLimit(5)
+		if node, ok := t.root.(*routingNode); ok {
+			node.toCollect = true
+			var branchMu = [16]sync.Mutex{}
+			for i := 0; i < len(keys); i++ {
+				ind := i
+				eg.Go(func() error {
+					k := keybytesToHex(keys[ind])
+					branchMu[k[0]].Lock()
+					defer branchMu[k[0]].Unlock()
+					child, err := t.markToCollect(node.Children[k[0]], k, 1)
+					if err != nil {
+						if errors.Is(err, ErrKVNotFound) {
+							err = ErrNotFound
+						}
+						return err
+					}
+					node.Children[k[0]] = child
+					return nil
+				})
 
-	// switch n := t.root.(type) {
-	// case *nilNode:
-	// 	val, err := n.Serialize()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
-	// 		Value: val,
-	// 	})
-	// 	return cbor.Marshal(persistTrie)
-	// case *valueNode:
-	// 	val, err := n.Serialize()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
-	// 		Value: val,
-	// 	})
-	// 	return cbor.Marshal(persistTrie)
-	// case *routingNode:
-	// 	n.dirty = true
-	// }
-	for _, key := range keys {
-		k := keybytesToHex(key)
-		_, err := t.markToCollect(t.root, k, 0)
-		if err != nil {
-			if errors.Is(err, ErrKVNotFound) {
-				err = ErrNotFound
 			}
-			return nil, err
+			err := eg.Wait()
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		for _, key := range keys {
+			k := keybytesToHex(key)
+			_, err := t.markToCollect(t.root, k, 0)
+			if err != nil {
+				if errors.Is(err, ErrKVNotFound) {
+					err = ErrNotFound
+				}
+				return nil, err
+			}
 		}
 	}
 	err := t.collectNodes(t.root, persistTrie)

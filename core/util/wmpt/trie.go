@@ -287,6 +287,7 @@ func (t *WeightedMerkleTrie) SaveRoot() {
 		t.oldRoot.hash = t.root.Hash()
 		t.oldRoot.weight = t.root.Weight()
 	}
+	t.created = nil
 }
 
 // Rollback rolls back the trie to the previous root
@@ -298,6 +299,14 @@ func (t *WeightedMerkleTrie) Rollback() {
 		}
 	} else {
 		t.root = emptyNode
+	}
+	if len(t.created) > 0 {
+		batcher := t.db.NewBatch()
+		for _, key := range t.created {
+			batcher.Delete(key)
+		}
+		batcher.Commit(false)
+		t.created = nil
 	}
 	t.tempDeleted = nil
 	t.DeleteNodes() //nolint:errcheck
@@ -347,9 +356,13 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 	root, ok := t.root.(*routingNode)
 	deleteChan := make(chan []byte, 10)
 	createdChan := make(chan []byte, 10)
-	defer close(deleteChan)
-	defer close(createdChan)
-	t.collectDeleteAndCreated(deleteChan, createdChan)
+	wg := &sync.WaitGroup{}
+	defer func() {
+		close(deleteChan)
+		close(createdChan)
+		wg.Wait()
+	}()
+	t.collectDeleteAndCreated(deleteChan, createdChan, wg)
 	if ok {
 		eg, _ := errgroup.WithContext(context.Background())
 		eg.SetLimit(5)
@@ -509,19 +522,21 @@ func commonPrefix(a, b []byte) int {
 	return i
 }
 
-func (t *WeightedMerkleTrie) collectDeleteAndCreated(deleteChan, createdChan chan []byte) {
-	t.tempDeleted = nil
+func (t *WeightedMerkleTrie) collectDeleteAndCreated(deleteChan, createdChan chan []byte, wg *sync.WaitGroup) {
 	t.created = nil
+	wg.Add(2)
 	go func() {
 		for hash := range deleteChan {
 			if len(hash) > 0 {
 				t.tempDeleted = append(t.tempDeleted, hash)
 			}
 		}
+		wg.Done()
 	}()
 	go func() {
 		for hash := range createdChan {
 			t.created = append(t.created, hash)
 		}
+		wg.Done()
 	}()
 }
