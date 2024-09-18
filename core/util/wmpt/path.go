@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/sync/errgroup"
@@ -28,8 +30,9 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 			t.root = loadedNode
 		}
 	}
+	now := time.Now()
 
-	if len(keys) > 1 {
+	if len(keys) > 10 {
 		eg, _ := errgroup.WithContext(context.TODO())
 		eg.SetLimit(5)
 		if node, ok := t.root.(*routingNode); ok {
@@ -51,7 +54,6 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 					node.Children[k[0]] = child
 					return nil
 				})
-
 			}
 			err := eg.Wait()
 			if err != nil {
@@ -70,11 +72,15 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 			}
 		}
 	}
+	elapsedMark := time.Since(now)
 	err := t.collectNodes(t.root, persistTrie)
 	if err != nil {
 		return nil, err
 	}
-	return cbor.Marshal(persistTrie)
+	elapsedCollect := time.Since(now) - elapsedMark
+	data, err := cbor.Marshal(persistTrie)
+	fmt.Println("getPath", "elapsedMark: ", elapsedMark.Milliseconds(), "elapsedColect", elapsedCollect.Milliseconds(), "total", time.Since(now).Milliseconds())
+	return data, err
 }
 
 func (t *WeightedMerkleTrie) collectNodes(node Node, persistTrie *PersistTrie) error {
