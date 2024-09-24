@@ -405,7 +405,7 @@ func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) 
 }
 
 func (t *WeightedMerkleTrie) RollbackTrie(node Node) {
-	if node == nil {
+	if node == nil || node.Weight() == 0 {
 		node = emptyNode
 	} else if bytes.Equal(node.Hash(), t.root.Hash()) {
 		return
