@@ -287,7 +287,7 @@ func (t *WeightedMerkleTrie) Put(key, value []byte, weight uint64) error {
 
 // SaveRoot saves the current root to the old root
 func (t *WeightedMerkleTrie) SaveRoot() {
-	if t.root != nil {
+	if t.root != nil && t.root.Weight() > 0 {
 		t.oldRoot.hash = t.root.Hash()
 		t.oldRoot.weight = t.root.Weight()
 	}
@@ -296,7 +296,7 @@ func (t *WeightedMerkleTrie) SaveRoot() {
 
 // Rollback rolls back the trie to the previous root
 func (t *WeightedMerkleTrie) Rollback() {
-	if len(t.oldRoot.hash) > 0 {
+	if t.oldRoot.weight > 0 {
 		t.root = &hashNode{
 			hash:   t.oldRoot.hash,
 			weight: t.oldRoot.weight,
