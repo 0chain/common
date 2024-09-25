@@ -91,12 +91,16 @@ func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
 
 func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (uint64, Node, error) {
 	if len(key) == 0 {
-		changeWeight := value.Weight()
 		if v, ok := node.(*valueNode); ok {
-			changeWeight -= v.weight
-			t.tempDeleted = append(t.tempDeleted, v.Hash())
+			v.weight = value.Weight() - v.Weight()
+			newVal := value.(*valueNode).value
+			if bytes.Equal(v.value, newVal) {
+				return 0, v, nil
+			}
+			v.value = newVal
+			v.dirty = true
 		}
-		return changeWeight, value, nil
+		return value.Weight(), value, nil
 	}
 
 	switch n := node.(type) {
