@@ -91,13 +91,12 @@ func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
 
 func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (uint64, Node, error) {
 	if len(key) == 0 {
+		changeWeight := value.Weight()
 		if v, ok := node.(*valueNode); ok {
-			v.dirty = true
-			c := value.Weight() - v.weight
-			v.weight = value.Weight()
-			return c, v, nil
+			changeWeight -= v.weight
+			t.tempDeleted = append(t.tempDeleted, v.Hash())
 		}
-		return value.Weight(), value, nil
+		return changeWeight, value, nil
 	}
 
 	switch n := node.(type) {
@@ -121,6 +120,7 @@ func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (
 			n.value = newNode
 			return change, n, nil
 		}
+		t.tempDeleted = append(t.tempDeleted, n.Hash())
 		branch := &routingNode{dirty: true, weight: n.Weight() + value.Weight()}
 		var err error
 		_, branch.Children[n.key[prefixLen]], err = t.insert(nil, append(prefix, n.key[:prefixLen+1]...), n.key[prefixLen+1:], n.value)

@@ -190,3 +190,18 @@ func TestRollbackTrie(t *testing.T) {
 	_, _, err = dbTrie.GetBlockProof(21)
 	assert.NoError(t, err)
 }
+
+func TestUpdateTrie(t *testing.T) {
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	trie := New(nil, nil)
+	trie.Update(keys[0], []byte("hello"), 10)
+	h1 := trie.root.CalcHash()
+	trie.Update(keys[0], []byte("hi"), 10)
+	h2 := trie.root.CalcHash()
+	assert.Equal(t, trie.root.Weight(), uint64(10))
+	assert.NotEqual(t, h1, h2)
+}
