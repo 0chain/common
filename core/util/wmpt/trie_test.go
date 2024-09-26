@@ -198,10 +198,12 @@ func TestUpdateTrie(t *testing.T) {
 		keys = append(keys, hash[:])
 	}
 	trie := New(nil, nil)
-	trie.Update(keys[0], []byte("hello"), 10)
+	trie.Update(keys[0], []byte("a"), 10)
+	trie.Update(keys[1], []byte("b"), 10)
 	h1 := trie.root.CalcHash()
-	trie.Update(keys[0], []byte("hi"), 10)
+	assert.Equal(t, trie.root.Weight(), uint64(20))
+	trie.Update(keys[1], []byte("c"), 5)
 	h2 := trie.root.CalcHash()
-	assert.Equal(t, trie.root.Weight(), uint64(10))
+	assert.Equal(t, trie.root.Weight(), uint64(15))
 	assert.NotEqual(t, h1, h2)
 }

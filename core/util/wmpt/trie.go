@@ -89,18 +89,20 @@ func (t *WeightedMerkleTrie) Update(key, value []byte, weight uint64) error {
 	return nil
 }
 
-func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (uint64, Node, error) {
+func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (int64, Node, error) {
 	if len(key) == 0 {
 		if v, ok := node.(*valueNode); ok {
-			v.weight = value.Weight() - v.Weight()
 			newVal := value.(*valueNode).value
 			if bytes.Equal(v.value, newVal) {
 				return 0, v, nil
 			}
+			change := int64(value.Weight()) - int64(v.Weight())
+			v.weight = value.Weight()
 			v.value = newVal
 			v.dirty = true
+			return change, v, nil
 		}
-		return value.Weight(), value, nil
+		return int64(value.Weight()), value, nil
 	}
 
 	switch n := node.(type) {
@@ -110,7 +112,7 @@ func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (
 		if err != nil {
 			return 0, nil, err
 		}
-		n.weight += change
+		n.weight = uint64(int64(n.weight) + change)
 		n.Children[key[0]] = newNode
 		return change, n, nil
 	case *shortNode:
@@ -136,9 +138,9 @@ func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (
 			return 0, nil, err
 		}
 		if prefixLen == 0 {
-			return value.Weight(), branch, nil
+			return int64(value.Weight()), branch, nil
 		}
-		return value.Weight(), &shortNode{key: key[:prefixLen], value: branch, dirty: true}, nil
+		return int64(value.Weight()), &shortNode{key: key[:prefixLen], value: branch, dirty: true}, nil
 	case *hashNode:
 		rn, err := t.resolveHashNode(n)
 		if err != nil {
@@ -146,9 +148,9 @@ func (t *WeightedMerkleTrie) insert(node Node, prefix, key []byte, value Node) (
 		}
 		return t.insert(rn, prefix, key, value)
 	case nil:
-		return value.Weight(), &shortNode{key: key, value: value, dirty: true}, nil
+		return int64(value.Weight()), &shortNode{key: key, value: value, dirty: true}, nil
 	case *nilNode:
-		return value.Weight(), &shortNode{key: key, value: value, dirty: true}, nil
+		return int64(value.Weight()), &shortNode{key: key, value: value, dirty: true}, nil
 	default:
 		return 0, nil, errors.New("unknown node type")
 	}
