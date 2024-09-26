@@ -36,7 +36,7 @@ type WeightedMerkleTrie struct {
 // New creates a new weighted merkle trie
 func New(root Node, db storage.StorageAdapter) *WeightedMerkleTrie {
 	if root == nil {
-		root = &nilNode{}
+		root = emptyNode
 	}
 	return &WeightedMerkleTrie{db: db, root: root}
 }
@@ -289,7 +289,7 @@ func (t *WeightedMerkleTrie) Put(key, value []byte, weight uint64) error {
 
 // SaveRoot saves the current root to the old root
 func (t *WeightedMerkleTrie) SaveRoot() {
-	if t.root != nil && t.root.Weight() > 0 {
+	if t.root != nil {
 		t.oldRoot.hash = t.root.Hash()
 		t.oldRoot.weight = t.root.Weight()
 	}
