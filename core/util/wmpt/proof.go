@@ -38,9 +38,6 @@ func (t *WeightedMerkleTrie) getBlockProof(node Node, block uint64, prefix []byt
 	if err != nil {
 		return nil, err
 	}
-	persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
-		Value: data,
-	})
 
 	switch n := node.(type) {
 	case *routingNode:
@@ -49,6 +46,9 @@ func (t *WeightedMerkleTrie) getBlockProof(node Node, block uint64, prefix []byt
 				continue
 			}
 			if block <= child.Weight() {
+				persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
+					Value: data,
+				})
 				return t.getBlockProof(child, block, append(prefix, byte(i)), persistTrie)
 			}
 			block -= child.Weight()
@@ -57,8 +57,14 @@ func (t *WeightedMerkleTrie) getBlockProof(node Node, block uint64, prefix []byt
 		if block > n.Weight() {
 			return nil, ErrWeightNotInRange
 		}
+		persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
+			Value: data,
+		})
 		return t.getBlockProof(n.value, block, append(prefix, n.key...), persistTrie)
 	case *valueNode:
+		persistTrie.Pairs = append(persistTrie.Pairs, &PersistTriePair{
+			Value: data,
+		})
 		return prefix, nil
 	case *hashNode:
 		rn, err := t.resolveHashNode(n)
