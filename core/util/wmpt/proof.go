@@ -91,7 +91,7 @@ func (t *WeightedMerkleTrie) VerifyBlockProof(block uint64, proof []byte) (hash,
 		return nil, nil, errors.New("proof is empty")
 	}
 	ind := 0
-	value, err = verifyProof(persistTrie, block, &ind)
+	t.root, value, err = verifyProof(persistTrie, block, &ind)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,49 +99,56 @@ func (t *WeightedMerkleTrie) VerifyBlockProof(block uint64, proof []byte) (hash,
 	return
 }
 
-func verifyProof(persistTrie *PersistTrie, block uint64, ind *int) (value []byte, err error) {
+func verifyProof(persistTrie *PersistTrie, block uint64, ind *int) (Node, []byte, error) {
 	if *ind >= len(persistTrie.Pairs) {
-		return nil, errors.New("index out of bounds")
+		return nil, nil, errors.New("index out of bounds")
 	}
 
 	node, err := DeserializeNode(persistTrie.Pairs[*ind].Value)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	*ind++
 
 	switch n := node.(type) {
 	case *routingNode:
-		for _, child := range &n.Children {
-			if child == nil {
+		for i := 0; i < len(&n.Children); i++ {
+			if n.Children[i] == nil {
 				continue
 			}
+			child := n.Children[i]
 			if block <= child.Weight() {
-				val, err := verifyProof(persistTrie, block, ind)
+				newNode, val, err := verifyProof(persistTrie, block, ind)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
+				n.Children[i] = newNode
 				n.dirty = true
 				n.CalcHash()
-				return val, nil
+				return n, val, nil
 			}
 			block -= child.Weight()
 		}
-		return nil, ErrWeightNotInRange
+		return nil, nil, ErrWeightNotInRange
 	case *shortNode:
 		if block > n.Weight() {
-			return nil, ErrWeightNotInRange
+			return nil, nil, ErrWeightNotInRange
 		}
+		newNode, val, err := verifyProof(persistTrie, block, ind)
+		if err != nil {
+			return nil, nil, err
+		}
+		n.value = newNode
 		n.dirty = true
 		n.CalcHash()
-		return verifyProof(persistTrie, block, ind)
+		return n, val, nil
 	case *valueNode:
 		if block > n.Weight() {
-			return nil, ErrWeightNotInRange
+			return nil, nil, ErrWeightNotInRange
 		}
 		n.dirty = true
 		n.CalcHash()
-		return n.value, nil
+		return n, n.value, nil
 	}
-	return nil, errors.New("invalid node")
+	return nil, nil, errors.New("invalid node")
 }
