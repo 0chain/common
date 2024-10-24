@@ -207,3 +207,98 @@ func TestUpdateTrie(t *testing.T) {
 	assert.Equal(t, trie.root.Weight(), uint64(15))
 	assert.NotEqual(t, h1, h2)
 }
+
+func TestCommitAndRollback(t *testing.T) {
+	wd, err := os.Getwd()
+	assert.NoError(t, err)
+	pebDir := filepath.Join(wd, "pebble_storage")
+	assert.NoError(t, os.RemoveAll(pebDir))
+	assert.NoError(t, os.MkdirAll(pebDir, 0777))
+	db, err := kv.NewPebbleAdapter(pebDir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		db.Close()
+		os.RemoveAll(pebDir)
+	}()
+	t1 := New(nil, db)
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	t1.SaveRoot()
+	t1.Update(keys[0], []byte("a"), 10)
+	b, err := t1.Commit(3)
+	assert.NoError(t, err)
+	err = b.Commit(true)
+	assert.NoError(t, err)
+	assert.NoError(t, t1.DeleteNodes())
+	t1.SaveRoot()
+	assert.NoError(t, t1.Update(keys[0], nil, 0))
+	b, err = t1.Commit(3)
+	assert.NoError(t, err)
+	err = b.Commit(true)
+	assert.NoError(t, err)
+	assert.NoError(t, t1.DeleteNodes())
+	h := t1.Root()
+	assert.Equal(t, h, emptyState)
+	data, err := t1.GetPath(nil)
+	assert.NoError(t, err)
+	t2 := New(nil, nil)
+	assert.NoError(t, t2.Deserialize(data))
+	h2 := t2.GetRoot().CalcHash()
+	assert.Equal(t, h2, h)
+	t1.SaveRoot()
+	t1.Rollback()
+	assert.Equal(t, t1.Root(), h)
+}
+
+func TestUploadDelete(t *testing.T) {
+	wd, err := os.Getwd()
+	assert.NoError(t, err)
+	pebDir := filepath.Join(wd, "pebble_storage")
+	assert.NoError(t, os.RemoveAll(pebDir))
+	assert.NoError(t, os.MkdirAll(pebDir, 0777))
+	db, err := kv.NewPebbleAdapter(pebDir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		db.Close()
+		os.RemoveAll(pebDir)
+	}()
+	t1 := New(nil, db)
+	keys := make([][]byte, 0, 5)
+	for i := 0; i < 5; i++ {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		keys = append(keys, hash[:])
+	}
+	t1.SaveRoot()
+	t1.Update(keys[0], []byte("a"), 10)
+	b, err := t1.Commit(3)
+	assert.NoError(t, err)
+	err = b.Commit(true)
+	assert.NoError(t, err)
+	assert.NoError(t, t1.DeleteNodes())
+	t1.SaveRoot()
+	assert.NoError(t, t1.Update(keys[0], nil, 0))
+	b, err = t1.Commit(3)
+	assert.NoError(t, err)
+	err = b.Commit(true)
+	assert.NoError(t, err)
+	assert.NoError(t, t1.DeleteNodes())
+	t1.Update(keys[0], []byte("a"), 10)
+	b, err = t1.Commit(3)
+	assert.NoError(t, err)
+	err = b.Commit(true)
+	assert.NoError(t, err)
+	assert.NoError(t, t1.DeleteNodes())
+	t2 := New(&hashNode{
+		weight: 10,
+		hash:   t1.GetRoot().CalcHash(),
+	}, db)
+	_, _, err = t2.GetBlockProof(6)
+	assert.NoError(t, err)
+}

@@ -27,7 +27,7 @@ type WeightedMerkleTrie struct {
 	root        Node
 	db          storage.StorageAdapter
 	oldRoot     hashNode
-	deleted     [][]byte
+	deleted     map[[32]byte]bool
 	tempDeleted [][]byte
 	created     [][]byte
 	sync.Mutex
@@ -38,7 +38,7 @@ func New(root Node, db storage.StorageAdapter) *WeightedMerkleTrie {
 	if root == nil {
 		root = emptyNode
 	}
-	return &WeightedMerkleTrie{db: db, root: root}
+	return &WeightedMerkleTrie{db: db, root: root, deleted: make(map[[32]byte]bool)}
 }
 
 func (t *WeightedMerkleTrie) CopyRoot(collapseLevel int) Node {
@@ -322,8 +322,8 @@ func (t *WeightedMerkleTrie) Rollback() {
 func (t *WeightedMerkleTrie) DeleteNodes() error {
 	if len(t.deleted) > 0 {
 		batcher := t.db.NewBatch()
-		for _, key := range t.deleted {
-			err := batcher.Delete(key)
+		for key := range t.deleted {
+			err := batcher.Delete(key[:])
 			if err != nil {
 				return err
 			}
@@ -333,7 +333,12 @@ func (t *WeightedMerkleTrie) DeleteNodes() error {
 			return err
 		}
 	}
-	t.deleted = t.tempDeleted
+	clear(t.deleted)
+	for _, key := range t.tempDeleted {
+		var k [32]byte
+		copy(k[:], key)
+		t.deleted[k] = true
+	}
 	t.tempDeleted = nil
 	return nil
 }
@@ -541,6 +546,10 @@ func (t *WeightedMerkleTrie) collectDeleteAndCreated(deleteChan, createdChan cha
 	}()
 	go func() {
 		for hash := range createdChan {
+			//check if hash is in deleted, if so, remove it
+			var k [32]byte
+			copy(k[:], hash)
+			delete(t.deleted, k)
 			t.created = append(t.created, hash)
 		}
 		wg.Done()
