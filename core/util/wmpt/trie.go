@@ -430,7 +430,7 @@ func (t *WeightedMerkleTrie) RollbackTrie(node Node) {
 		batcher.Commit(false) //nolint:errcheck
 	}
 	t.created = nil
-	t.deleted = nil
+	clear(t.deleted)
 }
 
 func (t *WeightedMerkleTrie) Delete(key []byte) (uint64, error) {
