@@ -364,6 +364,9 @@ func (t *WeightedMerkleTrie) Weight() uint64 {
 // Commit collapses the trie to the specified level and returns the batcher and the deleted nodes, it is the caller's responsibility to commit the batch
 func (t *WeightedMerkleTrie) Commit(collapseLevel int) (storage.Batcher, error) {
 	batcher := t.db.NewBatch()
+	if !t.root.Dirty() {
+		return batcher, nil
+	}
 	root, ok := t.root.(*routingNode)
 	deleteChan := make(chan []byte, 10)
 	createdChan := make(chan []byte, 10)

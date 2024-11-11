@@ -117,6 +117,7 @@ func (r *routingNode) CalcHash() []byte {
 	}
 	h := encryption.RawHash(m)
 	r.hash = h
+	r.dirty = false
 	return h
 }
 
