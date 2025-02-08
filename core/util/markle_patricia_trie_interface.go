@@ -11,7 +11,7 @@ import (
 
 // MPTMaxAllowableNodeSize - Maximum allowable size of MPT node
 const (
-	MPTMaxAllowableNodeSize = 1024 * 1024 // 1 MB
+	MPTMaxAllowableNodeSize = 10 * 1024 * 1024 // 1 MB
 )
 
 // ErrIteratingChildNodes - indicates an error iterting the child nodes
