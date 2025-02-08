@@ -28,6 +28,7 @@ type MerklePatriciaTrie struct {
 	Version         Sequence
 	missingNodeKeys []Key
 	cache           *statecache.TransactionCache
+	deleteNodes     []Node // delete nodes that added when sync from remote
 }
 
 /*NewMerklePatriciaTrie - create a new patricia merkle trie */
@@ -228,11 +229,25 @@ func (mpt *MerklePatriciaTrie) GetChanges() (Key, []*NodeChange, []Node, Key) {
 }
 
 func (mpt *MerklePatriciaTrie) GetDeletes() []Node {
-	var nodes []Node
 	mpt.mutex.RLock()
-	nodes = mpt.ChangeCollector.GetDeletes()
+	nodes := mpt.ChangeCollector.GetDeletes()
+	nodesMap := make(map[string]struct{})
+	for _, nd := range nodes {
+		nodesMap[nd.GetHash()] = struct{}{}
+	}
+
+	newNodes := make([]Node, 0, len(nodes)+len(mpt.deleteNodes))
+	newNodes = append(newNodes, nodes...)
+	for _, nd := range mpt.deleteNodes {
+		if _, ok := nodesMap[nd.GetHash()]; ok {
+			// already added
+			continue
+		}
+		newNodes = append(newNodes, nd)
+	}
+
 	mpt.mutex.RUnlock()
-	return nodes
+	return newNodes
 }
 
 /*GetChangeCount - implement interface */
@@ -1107,7 +1122,7 @@ func (mpt *MerklePatriciaTrie) mergeChanges(newRoot Key, changes []*NodeChange, 
 }
 
 // MergeDB - merges the state changes from the node db directly
-func (mpt *MerklePatriciaTrie) MergeDB(ndb NodeDB, root Key) error {
+func (mpt *MerklePatriciaTrie) MergeDB(ndb NodeDB, root Key, deadNodes []Node) error {
 	mpt.mutex.Lock()
 	defer mpt.mutex.Unlock()
 	handler := func(ctx context.Context, key Key, node Node) error {
@@ -1115,5 +1130,6 @@ func (mpt *MerklePatriciaTrie) MergeDB(ndb NodeDB, root Key) error {
 		return err
 	}
 	mpt.root = root
+	mpt.deleteNodes = append(mpt.deleteNodes, deadNodes...)
 	return ndb.Iterate(context.TODO(), handler)
 }

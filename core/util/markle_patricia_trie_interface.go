@@ -11,7 +11,7 @@ import (
 
 // MPTMaxAllowableNodeSize - Maximum allowable size of MPT node
 const (
-	MPTMaxAllowableNodeSize = 1024 * 1024 // 1 MB
+	MPTMaxAllowableNodeSize = 10 * 1024 * 1024 // 1 MB
 )
 
 // ErrIteratingChildNodes - indicates an error iterting the child nodes
@@ -67,7 +67,7 @@ type MerklePatriciaTrieI interface {
 
 	MergeMPTChanges(mpt2 MerklePatriciaTrieI) error
 	MergeChanges(newRoot Key, changes []*NodeChange, deletes []Node, startRoot Key) error
-	MergeDB(ndb NodeDB, root Key) error
+	MergeDB(ndb NodeDB, root Key, deadNodes []Node) error
 
 	Cache() *statecache.TransactionCache
 }
