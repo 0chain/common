@@ -298,6 +298,8 @@ func (t *WeightedMerkleTrie) SaveRoot() {
 
 // Rollback rolls back the trie to the previous root
 func (t *WeightedMerkleTrie) Rollback() {
+	t.Lock()
+	defer t.Unlock()
 	if t.oldRoot.weight > 0 {
 		t.root = &hashNode{
 			hash:   t.oldRoot.hash,
@@ -315,7 +317,7 @@ func (t *WeightedMerkleTrie) Rollback() {
 		t.created = nil
 	}
 	t.tempDeleted = nil
-	t.DeleteNodes() //nolint:errcheck
+	clear(t.deleted)
 }
 
 // DeleteNodes deletes the nodes from the underlying storage and sets nextDelete to the tempDeleted nodes collected in previous mutations
