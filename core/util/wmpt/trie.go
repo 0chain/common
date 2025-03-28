@@ -169,11 +169,11 @@ func (t *WeightedMerkleTrie) delete(node Node, prefix, key []byte) (uint64, Node
 			return n.Weight(), nil, nil
 		}
 		//the key is longer than the short node key, call delete on the child
-		n.dirty = true
 		change, newNode, err := t.delete(n.value, append(prefix, key[:len(n.key)]...), key[len(n.key):])
 		if err != nil {
 			return 0, nil, err
 		}
+		n.dirty = true
 		switch child := newNode.(type) {
 		case *shortNode:
 			//merge the short node
@@ -462,10 +462,10 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 	if !node.Dirty() {
 		return node, nil
 	}
-	deleteChan <- node.Hash()
 	var err error
 	switch n := node.(type) {
 	case *routingNode:
+		prevHash := n.Hash()
 		for i := 0; i < len(n.Children); i++ {
 			if n.Children[i] == nil || !n.Children[i].Dirty() {
 				continue
@@ -491,8 +491,12 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 			}, nil
 		}
 		createdChan <- n.Hash()
+		if !bytes.Equal(prevHash, n.Hash()) {
+			deleteChan <- prevHash
+		}
 		return n, nil
 	case *shortNode:
+		prevHash := n.Hash()
 		collapsedNode, err := t.commit(n.value, batcher, collapseLevel, level+1, deleteChan, createdChan)
 		if err != nil {
 			return nil, err
@@ -512,13 +516,20 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 			n.value = hn
 		}
 		createdChan <- n.Hash()
+		if !bytes.Equal(prevHash, n.Hash()) {
+			deleteChan <- prevHash
+		}
 		return n, nil
 	case *valueNode:
+		prevHash := n.Hash()
 		err = n.Save(batcher)
 		if err != nil {
 			return nil, err
 		}
 		createdChan <- n.Hash()
+		if !bytes.Equal(prevHash, n.Hash()) {
+			deleteChan <- prevHash
+		}
 		return n, nil
 	}
 

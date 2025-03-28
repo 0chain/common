@@ -49,8 +49,9 @@ type (
 )
 
 var (
-	emptyNode      = &nilNode{}
-	emptyNodeBytes []byte
+	emptyNode       = &nilNode{}
+	emptyNodeBytes  []byte
+	ErrNodeNotDirty = errors.New("node is not dirty")
 )
 
 func init() {
@@ -135,7 +136,7 @@ func (r *routingNode) Dirty() bool {
 
 func (r *routingNode) Save(batcher storage.Batcher) error {
 	if !r.dirty {
-		return nil
+		return ErrNodeNotDirty
 	}
 	data, err := r.Serialize()
 	if err != nil {
@@ -220,7 +221,7 @@ func (v *valueNode) Dirty() bool {
 
 func (v *valueNode) Save(batcher storage.Batcher) error {
 	if !v.dirty {
-		return nil
+		return ErrNodeNotDirty
 	}
 	data, err := v.Serialize()
 	if err != nil {
@@ -394,7 +395,7 @@ func (s *shortNode) Serialize() ([]byte, error) {
 
 func (s *shortNode) Save(batcher storage.Batcher) error {
 	if !s.dirty {
-		return nil
+		return ErrNodeNotDirty
 	}
 	data, err := s.Serialize()
 	if err != nil {
