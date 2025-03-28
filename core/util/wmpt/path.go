@@ -23,7 +23,7 @@ func (t *WeightedMerkleTrie) GetPath(keys [][]byte) ([]byte, error) {
 			}
 			loadedNode, err := DeserializeNode(data)
 			if err != nil {
-
+				return nil, err
 			}
 			t.root = loadedNode
 		}
