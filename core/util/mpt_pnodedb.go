@@ -45,7 +45,7 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
 	opts.SetCreateIfMissingColumnFamilies(true)
-	opts.OptimizeUniversalStyleCompaction(64 * 1024 * 1024)
+	opts.OptimizeUniversalStyleCompaction(8 * 1024 * 1024) // Reduced from 64MB to 32MB
 	if sstType == SSTTypePlainTable {
 		opts.SetAllowMmapReads(true)
 		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
@@ -54,15 +54,25 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 		opts.OptimizeForPointLookup(64)
 		opts.SetAllowMmapReads(true)
 		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
-		opts.SetMaxBackgroundJobs(4)               // default was 2, double to 4
-		opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
-		opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
-		opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
+		opts.SetMaxBackgroundJobs(8)             // Increased from 4 to 8
+		opts.SetMaxWriteBufferNumber(4)          // Keep at 4
+		opts.SetWriteBufferSize(1 * 1024 * 1024) // Reduced from 128M to 64M
+		opts.SetMinWriteBufferNumberToMerge(1)   // Reduced from 2 to 1
+
+		// Add compaction trigger settings for more frequent compaction
+		opts.SetLevel0FileNumCompactionTrigger(2) // Trigger compaction at 4 files
+		opts.SetLevel0SlowdownWritesTrigger(8)    // Slowdown at 8 files
+		opts.SetLevel0StopWritesTrigger(12)       // Stop writes at 12 files
+		// opts.SetTargetFileSizeBase(64 * 1024 * 1024) // 64MB target file size
 	}
 	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
 	opts.EnableStatistics()
 	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
+
+	opts.SetMaxTotalWalSize(2 * 1024 * 1024)
+
+	opts.SetWALTtlSeconds(60)
 
 	return opts
 }
@@ -76,10 +86,17 @@ func newDeadNodesCFOptions() *grocksdb.Options {
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
 
-	opts.SetMaxBackgroundJobs(4)               // default was 2, double to 4
-	opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
-	opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
-	opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
+	opts.SetMaxBackgroundJobs(8)             // Increased from 4 to 8
+	opts.SetMaxWriteBufferNumber(4)          // Keep at 4
+	opts.SetWriteBufferSize(1 * 1024 * 1024) // Reduced from 128M to 64M
+	opts.SetMinWriteBufferNumberToMerge(1)   // Reduced from 2 to 1
+
+	// Add compaction trigger settings for more frequent compaction
+	opts.SetLevel0FileNumCompactionTrigger(2)   // Trigger compaction at 4 files
+	opts.SetLevel0SlowdownWritesTrigger(8)      // Slowdown at 8 files
+	opts.SetLevel0StopWritesTrigger(12)         // Stop writes at 12 files
+	opts.SetTargetFileSizeBase(1 * 1024 * 1024) // 64MB target file size
+
 	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
 	return opts
 }
@@ -89,6 +106,9 @@ func newDBOptions() *grocksdb.Options {
 	opts.SetCreateIfMissing(true)
 	opts.SetCreateIfMissingColumnFamilies(true)
 	opts.SetCompression(PNodeDBCompression)
+	opts.SetMaxTotalWalSize(2 * 1024 * 1024)
+	opts.SetWALTtlSeconds(60)
+
 	return opts
 }
 
