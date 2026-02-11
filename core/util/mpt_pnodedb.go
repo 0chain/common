@@ -64,6 +64,18 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts.EnableStatistics()
 	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
 
+	// Cap WAL size to prevent unbounded growth during frequent restarts.
+	// Default is 0 (unlimited). Each restart creates a new WAL segment;
+	// without a cap, WAL files accumulate until memtables are flushed to SSTs.
+	// Set to 4x write buffer total (4 buffers * 128MB = 512MB) per RocksDB recommendation.
+	opts.SetMaxTotalWalSize(512 * 1024 * 1024) // 512 MB
+
+	// Limit RocksDB info log rotation to prevent state/log/ from growing unbounded.
+	// Without MaxLogFileSize, a single LOG file grows indefinitely (118+ GB on mainnet
+	// after 1 month stuck). With rotation + KeepLogFileNum, total is capped at ~500 MB.
+	opts.SetMaxLogFileSize(100 * 1024 * 1024) // rotate at 100 MB
+	opts.SetKeepLogFileNum(5)                 // keep 5 rotated files
+
 	return opts
 }
 
