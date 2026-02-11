@@ -54,10 +54,14 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 		opts.OptimizeForPointLookup(64)
 		opts.SetAllowMmapReads(true)
 		opts.SetPrefixExtractor(grocksdb.NewFixedPrefixTransform(6))
-		opts.SetMaxBackgroundJobs(4)               // default was 2, double to 4
-		opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
-		opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
-		opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
+		opts.SetMaxBackgroundJobs(4)              // default was 2, double to 4
+		opts.SetMaxWriteBufferNumber(4)           // keep 4 buffers for burst writes during finalization
+		opts.SetWriteBufferSize(8 * 1024 * 1024) // 8 MB — matches MPT workload (~200 KB/block)
+		// Reduced from 128 MB: RocksDB pre-allocates each WAL file to write_buffer_size
+		// via fallocate(FALLOC_FL_KEEP_SIZE). With 128 MB, 200 WAL files consumed 27.5 GB
+		// on disk despite only 31 MB of logical data. With 8 MB, same files use ~1.7 GB.
+		// Also fills memtables faster → more frequent flushes → old WAL files cleaned up sooner.
+		opts.SetMinWriteBufferNumberToMerge(1) // flush as soon as 1 memtable is full
 	}
 	opts.IncreaseParallelism(2) // pruning and saving happen in parallel
 	opts.SetDbLogDir(logDir)
@@ -65,10 +69,10 @@ func newDefaultCFOptions(logDir string) *grocksdb.Options {
 	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
 
 	// Cap WAL size to prevent unbounded growth during frequent restarts.
-	// Default is 0 (unlimited). Each restart creates a new WAL segment;
-	// without a cap, WAL files accumulate until memtables are flushed to SSTs.
-	// Set to 4x write buffer total (4 buffers * 128MB = 512MB) per RocksDB recommendation.
-	opts.SetMaxTotalWalSize(512 * 1024 * 1024) // 512 MB
+	// max_total_wal_size tracks logical file size (not disk-allocated blocks from fallocate),
+	// so this alone doesn't prevent pre-allocation bloat — write_buffer_size reduction above
+	// is the primary fix. This serves as a secondary cap for logical WAL accumulation.
+	opts.SetMaxTotalWalSize(64 * 1024 * 1024) // 64 MB (4 buffers * 8 MB * 2 CFs)
 
 	// Limit RocksDB info log rotation to prevent state/log/ from growing unbounded.
 	// Without MaxLogFileSize, a single LOG file grows indefinitely (118+ GB on mainnet
@@ -88,10 +92,10 @@ func newDeadNodesCFOptions() *grocksdb.Options {
 	opts.SetCreateIfMissing(true)
 	opts.SetCompression(PNodeDBCompression)
 
-	opts.SetMaxBackgroundJobs(4)               // default was 2, double to 4
-	opts.SetMaxWriteBufferNumber(4)            // default was 2, double to 4
-	opts.SetWriteBufferSize(128 * 1024 * 1024) // default was 64M, double to 128M
-	opts.SetMinWriteBufferNumberToMerge(2)     // default was 1, double to 2
+	opts.SetMaxBackgroundJobs(4)              // default was 2, double to 4
+	opts.SetMaxWriteBufferNumber(4)           // keep 4 buffers for burst writes
+	opts.SetWriteBufferSize(8 * 1024 * 1024) // 8 MB — match default CF to minimize WAL pre-alloc
+	opts.SetMinWriteBufferNumberToMerge(1)   // flush as soon as 1 memtable is full
 	opts.SetDeleteObsoleteFilesPeriodMicros(uint64(10 * time.Minute.Microseconds()))
 	return opts
 }
