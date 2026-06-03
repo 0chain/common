@@ -484,6 +484,13 @@ func (t *WeightedMerkleTrie) commit(node Node, batcher storage.Batcher, collapse
 			return nil, err
 		}
 		if level == collapseLevel {
+			// The collapsed node was just Save()d to the batch, so it lives in
+			// the new trie under this hash. It MUST be registered as created so
+			// (1) collectDeleteAndCreated removes it from the pending-delete set
+			// (a deferred DeleteNodes() would otherwise prune a node the new root
+			// still references -> dangling "pebble: not found"), and (2) it is
+			// cleaned up on Rollback like every other node written this commit.
+			createdChan <- n.Hash()
 			n.Children = [16]Node{}
 			return &hashNode{
 				hash:   n.Hash(),

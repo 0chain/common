@@ -139,6 +139,73 @@ func TestTrieCommit(t *testing.T) {
 	assert.Equal(t, trie.root.CalcHash(), dbTrie.root.Hash())
 }
 
+// TestCommitCollapsePruneDangling guards against the dangling-node bug where a
+// routing node collapsed at collapseLevel was Save()d but never registered on
+// createdChan. A node whose hash was queued for deletion in an earlier commit
+// (delete) and then re-appears at the collapse boundary in a later commit
+// (re-add) would be pruned by the deferred DeleteNodes() while the new root
+// still references it -> reloading and GetPath hits "pebble: not found".
+// Delete/re-add churn shifts tree depth around COLLAPSE_DEPTH and triggers it.
+func TestCommitCollapsePruneDangling(t *testing.T) {
+	const (
+		N        = 40
+		collapse = 2 // mirrors a shallow COLLAPSE_DEPTH so boundary is hit often
+	)
+	keys := make([][]byte, N)
+	for i := 0; i < N; i++ {
+		h := sha256.Sum256([]byte("collapse-" + strconv.Itoa(i)))
+		// Force a shared 2-byte prefix so all keys live under a deep common
+		// path; the random sha256 tail then branches into a multi-level trie.
+		h[0], h[1] = 0xAB, 0xCD
+		keys[i] = h[:]
+	}
+
+	wd, err := os.Getwd()
+	assert.NoError(t, err)
+	pebDir := filepath.Join(wd, "pebble_storage_collapse")
+	assert.NoError(t, os.RemoveAll(pebDir))
+	assert.NoError(t, os.MkdirAll(pebDir, 0777))
+	db, err := kv.NewPebbleAdapter(pebDir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		db.Close()
+		os.RemoveAll(pebDir)
+	}()
+
+	trie := New(nil, db)
+	val := func(i int) []byte { return []byte("v" + strconv.Itoa(i)) }
+	for i := 0; i < N; i++ {
+		assert.NoError(t, trie.Update(keys[i], val(i), uint64(i+1)))
+	}
+	commit := func() {
+		trie.SaveRoot()
+		batcher, cerr := trie.Commit(collapse)
+		assert.NoError(t, cerr)
+		assert.NoError(t, batcher.Commit(true))
+		assert.NoError(t, trie.DeleteNodes())
+	}
+	commit()
+
+	// After each round all N keys are present; reload from the persisted root
+	// and prove every path resolves (no pruned/dangling node).
+	checkIntact := func(round int) {
+		reloaded := New(&hashNode{hash: trie.Root(), weight: trie.GetRoot().Weight()}, db)
+		_, perr := reloaded.GetPath(keys)
+		assert.NoErrorf(t, perr, "round %d: GetPath hit a pruned collapsed node", round)
+	}
+
+	for round := 0; round < N; round++ {
+		i := round
+		assert.NoError(t, trie.Update(keys[i], nil, 0)) // delete -> hash queued for deferred delete
+		commit()
+		assert.NoError(t, trie.Update(keys[i], val(i), uint64(i+1))) // re-add -> may re-appear at boundary
+		commit()
+		checkIntact(round)
+	}
+}
+
 func TestRollbackTrie(t *testing.T) {
 	keys := make([][]byte, 0, 5)
 	for i := 0; i < 5; i++ {
